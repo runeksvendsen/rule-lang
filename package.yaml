@@ -1,0 +1,58 @@
+name:                rule-lang
+version:             0.1.0.0
+github:              "runeksvendsen/rule-lang"
+license:             BSD3
+author:              "Rune K. Svendsen"
+maintainer:          "runesvend@gmail.com"
+copyright:           "MIT"
+
+# extra-source-files:
+# - README.md
+# - ChangeLog.md
+
+# description:         Please see the README on GitHub at <https://github.com/runeksvendsen/rule-lang#readme>
+
+dependencies:
+  - base >= 4.7 && < 5
+
+ghc-options:
+  - -Wall
+  - -Wno-missing-signatures
+  - -Wno-name-shadowing
+
+library:
+  source-dirs: src
+  default-extensions:
+    - NoImplicitPrelude
+    - OverloadedStrings
+    - FlexibleContexts
+  dependencies:
+    - text
+    - unordered-containers
+    - aeson
+    - hashable
+    - transformers
+    - errors
+    - protolude
+
+executables:
+  rule-lang-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - rule-lang
+
+tests:
+  rule-lang-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - rule-lang
