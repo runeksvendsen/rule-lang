@@ -1,45 +1,28 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Eval.Result
-( Result
-, addPassed
-, addFailed
-, addIgnored
-, addDataMiss
-, joinResults
-  -- * Re-exports
-, Position
+( Level(..)
+, Result(..)
+, ResultStatus(..)
 )
 where
 
 import LangPrelude
+import Absyn
 import Eval.Types
 
 
-data Result a = Result
-    { rPassed   :: [a]  -- ^ A rule was applied and it passed
-    , rFailed   :: [a]  -- ^ A rule was applied and it failed
-    , rIgnored  :: [a]  -- ^ No rule was applied (filtered off)
-    , rDataMiss :: [(Text, [a])]  -- ^ The specified field is missing ("DataException")
-    }
+data Result = Result
+    { rPosition :: NonEmpty Position
+    , rScope    :: [Level]  -- ^ The empty list is the top level. The head of the list defines the innermost scope.
+    , rStatus   :: ResultStatus
+    } deriving Show
 
-instance Monoid (Result a) where
-    mempty = Result [] [] [] []
-
-instance Semigroup (Result a) where
-    Result a1 b1 c1 d1 <> Result a2 b2 c2 d2 =
-        Result (a1 <> a2) (b1 <> b2) (c1 <> c2) (d1 <> d2)
-
-addPassed :: Result a -> [a] -> Result a
-addPassed res a = res { rPassed = a ++ rPassed res }
-
-addFailed :: Result a -> [a] -> Result a
-addFailed res a = res { rFailed = a ++ rFailed res }
-
-addIgnored :: Result a -> [a] -> Result a
-addIgnored res a = res { rIgnored = a ++ rIgnored res }
-
-addDataMiss :: Result a -> (Text, [a]) -> Result a
-addDataMiss res a = res { rDataMiss = a : rDataMiss res }
-
-joinResults :: Foldable f => f (Result a) -> Result a
-joinResults = foldr (<>) mempty
+-- |
+data ResultStatus
+    = RulePassed        -- ^ Passed a rule
+    | RuleWarning       -- ^ (Unused) Warning level for a rule
+    | RuleViolated      -- ^ Violated a rule
+    | NotConsidered     -- ^ Filtered away (by "when")
+    | MissingField FieldName    -- ^ No such field exists (e.g. no such field as "Issuer")
+    | FieldTypeError    -- ^ Field data type incompatible with operation (e.g. "sum" on a field containing a 'String')
+        deriving (Eq, Show, Generic)

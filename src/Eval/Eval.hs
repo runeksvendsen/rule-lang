@@ -1,116 +1,139 @@
-module Eval.Eval where
+{-# LANGUAGE ScopedTypeVariables #-}
+module Eval.Eval
+( eval
+)
+where
 
 import LangPrelude
 import Eval.Types
--- import Eval.Result
-import Eval.Grouping
+import Eval.Env
+import Eval.Result
 import Eval.Monad
 import Absyn
 
-import           Control.Monad
-import           Control.Error
 import qualified Data.HashMap.Strict        as Map
 import qualified Data.Aeson                 as Json
 import qualified Data.List.NonEmpty         as NE
 
 
-
--- eval :: DataExpr a -> NonEmpty Position -> Either Text (Result Position)
--- eval expr portfolioPositions =
---     evalRec mempty ("Portfolio", portfolioPositions) emptyMap emptyMap expr
+eval :: DataExpr a -> NonEmpty Position -> Either Text [Result]
+eval expr portfolioPositions =
+    runEvalM $ evalRec (nonEmpty initialLevel) emptyMap expr
+  where
+    initialLevel = LevelPos (Level "Portfolio" (Json.String "")) portfolioPositions
 
 evalRec
-    :: GroupName                            -- Current group name
-    -> Env (Json.Value, NonEmpty Position)  -- groupName -> (groupKey, positions)
-    -> Env (DataExpr a)                     -- Variables
+    :: NonEmpty LevelPos    -- Current level/group and previous levels/groups
+    -> Env (DataExpr a)     -- Variables
     -> DataExpr a
     -> EvalM ()
-evalRec currentGroupName groups varEnv expr = case expr of
-    Both a b -> do
-           let evalCurrentScope = evalRec currentGroupName groups varEnv
-           evalCurrentScope a
-           res2 <- throwLeft $ runEvalM $ evalCurrentScope b
-           addResult res2
+evalRec levels varEnv expr = case expr of
+    Both a b ->
+        let evalCurrentScope = evalRec levels varEnv
+        in do
+            evalCurrentScope a
+            res2 <- throwLeft $ runEvalM $ evalCurrentScope b
+            addResults res2
+
     Let name rhs scope ->
-        evalRec currentGroupName groups (insert varEnv name rhs) scope
+        evalRec levels (insert varEnv name rhs) scope
+
     Var var ->
         let varNotFound = "Variable '" <> var <> "' doesn't exist"
-        in maybe (fatalError varNotFound) (evalRec currentGroupName groups varEnv) (lookup var varEnv)
-    GroupBy field scope ->
-        let Just (currentGroupKey, currentGroupPositions) = lookup currentGroupName groups
-            eval' (fieldValue, positions) =
-                evalRec field (insert groups field (fieldValue, positions)) varEnv scope
-        in do
-            newGrouping <- mkGroupingM field (lookup field) currentGroupPositions
-            mapM_ eval' (Map.toList newGrouping)
-    Filter comparison exprOpt -> error "Not implemented"
-    Rule comparison -> error "Not implemented"
+        in maybe (fatalError varNotFound) (evalRec levels varEnv) (lookup var varEnv)
+
+    GroupBy field scope -> do
+        newGrouping <- mkGroupingM field (lookup field) (currentLevelPos levels)
+        forM_ (Map.toList newGrouping) $ \(fieldValue, positions) -> do
+            let newLevelPos = LevelPos (Level field fieldValue) positions
+            enterScope (lpLevel newLevelPos) -- Used to associate results with the current level
+            evalRec (newLevelPos `cons` levels) varEnv scope
+
+    Filter _          Nothing      -> error "Not implemented"
+    Filter comparison (Just fExpr) -> do
+        compRes <- evalComparison levels comparison
+        whenJust (compareFalse compRes) notConsidered
+        whenJust (compareTrue compRes) $ \positions -> do
+            let newCurrentLevel = (currentLevel levels) { lpPositions = positions }
+            evalRec (replaceHead levels newCurrentLevel) varEnv fExpr
+
+    Rule comparison -> do
+        compRes <- evalComparison levels comparison
+        whenJust (compareFalse compRes) ruleViolated
+        whenJust (compareTrue compRes) rulePassed
 
 
 evalComparison
-    :: GroupName
-    -> Env (Json.Value, NonEmpty Position)
+    :: -- | Levels/groups
+       NonEmpty LevelPos
     -> Comparison
-    -> EvalM ()
-evalComparison currentGroupName groups (Comparison valueExpr fCompare value) = do
+    -> EvalM (ComparisonResult Position)
+evalComparison levels (Comparison valueExpr fCompare value) = do
     case valueExpr of
-        CountDistinct fieldName groupName ->
-            evalCountDistinct currentGroup fieldName groupName >>= compareM (`fCompare` value)
-        Forall fieldName ->
-            currentPositionsField currentGroup fieldName >>= mapM_ (\(pos,val) -> compareM (`fCompare` value) ([pos], Field val))
-        SumOver fieldName groupName groupNameOpt -> do
-            undefined
-
+        GroupValueExpr (CountDistinct fieldName) -> do
+            (positions, count) <- evalCountDistinct (currentLevelPos levels) fieldName
+            return $ groupCompare count positions
+        GroupValueExpr (SumOver fieldName groupNameOpt) -> do
+            (positions, sumValue) <- evalSumOver levels fieldName groupNameOpt
+            return $ groupCompare sumValue positions
+        PosValueExpr (Get fieldName) -> do
+            valueFields <- NE.map (fmap Field) <$> lookupFields fieldName (currentLevelPos levels)
+            return $ addManyResults (fCompare value) valueFields
   where
-    compareM test (positions, value) = do
-        if test value
-            then addPassed positions
-            else addFailed positions
+    groupCompare calculatedValue positions = do
+        if fCompare calculatedValue value
+            then ComparisonResult (Just positions) Nothing
+            else ComparisonResult Nothing (Just positions)
+    addManyResults :: (Value -> Bool) -> NonEmpty (Position, Value) -> ComparisonResult Position
+    addManyResults f =
+        foldr testAdd (ComparisonResult Nothing Nothing)
+      where
+        testAdd :: (Position, Value) -> ComparisonResult Position -> ComparisonResult Position
+        testAdd (item, testVal) cr =
+            if f testVal
+                then cr { compareTrue  = consMaybeNE item (compareTrue cr) }
+                else cr { compareFalse = consMaybeNE item (compareFalse cr) }
 
-evalSumOver currentGroupName fieldName groupNameOpt = do
-    sumValue <- evalSum currentGroup fieldName
-    return $ case groupNameOpt of
-        Nothing -> Field sumValue
-        Just groupName -> do
-            undefined
+data ComparisonResult a = ComparisonResult
+    { compareTrue   :: Maybe (NonEmpty a)
+    , compareFalse  :: Maybe (NonEmpty a)
+    }
 
-evalSum currentGroupName fieldName = do
-    positions <- currentPositionsField currentGroup fieldName
-    sumNumber (map snd positions)
+evalSumOver
+    :: NonEmpty LevelPos
+    -> FieldName
+    -> Maybe GroupName
+    -> EvalM (NonEmpty Position, Value)
+evalSumOver levels fieldName groupNameOpt = do
+    (positions, sumValue) <- evalSum (currentLevelPos levels) fieldName
+    addPositions positions =<< case groupNameOpt of
+        Nothing -> return (Sum sumValue)    -- Absolute
+        Just groupName -> do                -- Relative
+            groupPositions <- lookupLevel groupName levels
+            groupSumValue <- snd <$> evalSum groupPositions fieldName
+            return $ Percent (sumValue * 100 / groupSumValue)
   where
-    sumNumber = foldM addNumber (Json.Number 0)
-    -- TODO: prevent runtime failure
-    addNumber (Json.Number v1) (Json.Number v2) = return $ Json.Number (v1+v2)
-    addNumber (Json.Number _) f2 = throwError $ "sum: invalid field: " ++ show f2
-    addNumber f1 (Json.Number _) = throwError $ "sum: invalid field: " ++ show f1
-    addNumber f1 f2 = throwError $ "sum: invalid fields: " ++ show (f1,f2)
-    throwError str = fatalError (toS str)
+    addPositions positions value = return (positions, value)
 
-evalCountDistinct (currentGroupName, currentGroupPositions) fieldName groupName
-    | groupName /= currentGroupName = fatalError $ "Grouping '" <> groupName <> "' not found"
-    | otherwise = do
-        newGrouping <- mkGroupingM fieldName (lookup fieldName) currentGroupPositions
-        let result = fromIntegral $ length $ Map.keys newGrouping
-        return (NE.toList currentGroupPositions, Count result)
+-- TODO: prevent runtime failure
+evalSum :: NonEmpty Position -> FieldName -> EvalM (NonEmpty Position, Double)
+evalSum currentLevelPos fieldName = do
+    jsonFields <- lookupFields fieldName currentLevelPos
+    sumValue <$> mapM pairToDouble jsonFields
+  where
+    sumValue :: NonEmpty (Position, Double) -> (NonEmpty Position, Double)
+    sumValue posValueList = let unzipped = NE.unzip posValueList in (fst unzipped, sum (snd unzipped))
+    pairToDouble :: (a, Json.Value) -> EvalM (a, Double)
+    pairToDouble (a, val) = toDouble val >>= \double -> return (a, double)
+    toDouble :: Json.Value -> EvalM Double
+    toDouble (Json.Number s) = return (realToFrac s)
+    toDouble v = fatalError $ "sum: expected Number for '" <> fieldName <> "' found: " <> toS (show v)
 
-currentPositionsField (_, currentGroupPositions) fieldName = do
-    let fieldValuesE :: [Either Position (Position, Json.Value)]
-        fieldValuesE = NE.toList $ NE.map lookupField currentGroupPositions
-        lookupField pos = maybe (Left pos) (\v -> Right (pos, v)) (lookup fieldName pos)
-        dataMisses = lefts fieldValuesE
-    when (not $ null dataMisses) $
-        addDataMiss (fieldName, dataMisses)
-    return $ rights fieldValuesE
-
-
-
-
-
--- 35-30-6
-{-
-    for each Issuer:
-        where value Issuer > 35%:
-            count distinct SecurityID >= 6
-            for each SecurityID:
-                value SecurityID <= 30%
--}
+evalCountDistinct
+    :: NonEmpty Position
+    -> FieldName
+    -> EvalM (NonEmpty Position, Value)
+evalCountDistinct currentLevelPos fieldName = do
+    newGrouping <- mkGroupingM fieldName (lookup fieldName) currentLevelPos
+    let result = fromIntegral $ length $ Map.keys newGrouping
+    return (currentLevelPos, Count result)

@@ -7,6 +7,7 @@ import LangPrelude
 import Absyn
 
 
+checkData :: DataExpr a -> [Text]
 checkData expr =
     let aux errors groupEnv varEnv expr =
             case expr of
@@ -25,12 +26,16 @@ checkData expr =
                 Rule comparison -> checkComparison groupEnv comparison <> errors
     in aux [] ["Portfolio"] emptyMap expr
 
+checkComparison
+    :: [GroupName]
+    -> Comparison
+    -> [GroupName]
 checkComparison groupEnv (Comparison valueExpr _ _) =
     let groupNotFound name = "Grouping '" <> name <> "' doesn't exist"
         groupExists name = name `elem` groupEnv
         groupError name = if groupExists name then Nothing else Just (groupNotFound name)
     in case valueExpr of
-        CountDistinct _ groupName -> catMaybes [groupError groupName]
-        Forall _ -> []
-        SumOver _ groupName groupNameOpt ->
-            catMaybes [groupError groupName, groupNameOpt >>= groupError]
+        PosValueExpr (Get _) -> []
+        GroupValueExpr (CountDistinct _) -> []
+        GroupValueExpr (SumOver _ groupNameOpt) ->
+            catMaybes [groupNameOpt >>= groupError]

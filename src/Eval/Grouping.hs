@@ -1,13 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ConstraintKinds #-}
 module Eval.Grouping
 ( mkGrouping
 , mkGroupingMaybe
---   Grouping
--- , GroupedBy
--- , mkGroupedBy
--- * Re-exports
-, Groupable
 )
 where
 
@@ -15,10 +9,7 @@ import LangPrelude
 
 import qualified Data.List.NonEmpty         as NE
 import qualified Data.HashMap.Strict        as Map
-import           Data.Hashable              (Hashable)
 
-
-type Groupable a = (Eq a, Hashable a)
 
 mkGrouping
     :: Groupable key
@@ -38,14 +29,14 @@ mkGroupingMaybe
     :: Groupable key
     => (val -> Maybe key)
     -> NE.NonEmpty val
-    -> ([val], Map key (NE.NonEmpty val))   -- ^ (not_found_items, grouping)
+    -> (Maybe (NonEmpty val), Map key (NE.NonEmpty val))   -- ^ (not_found_items, grouping)
 mkGroupingMaybe f =
-    foldr folder ([], emptyMap) . NE.toList
+    foldr folder (Nothing, emptyMap) . NE.toList
   where
-    folder val (errorVals, map) =
+    folder val (errorValsM, map) =
         case f val of
-            Just key -> (errorVals, Map.insertWith insertFunc key (NE.fromList [val]) map)
-            Nothing  -> (val : errorVals, map)
+            Just key -> (errorValsM, Map.insertWith insertFunc key (NE.fromList [val]) map)
+            Nothing  -> (consMaybeNE val errorValsM, map)
     insertFunc new old = (NE.head new) `NE.cons` old
 
 

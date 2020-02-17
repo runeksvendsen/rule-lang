@@ -7,11 +7,11 @@ import Syntax
 -- 35-30-6
 thirtyfiveThirtySix =
     forEach "Issuer" $:
-        where' ("Value" `of'` "Issuer") (>) (Percent 35.0) $:
+        where' (sumOf "Value") (>) (Percent 35.0) $:
             rule (numberOf "SecurityID") (>=) (Count 6)
             +++
             forEach "Issue" |:
-                rule ("Value" `of'` "Issue") (<=) (Percent 30)
+                rule (sumOf "Value") (<=) (Percent 30)
 
 {-
     for each Issuer:
