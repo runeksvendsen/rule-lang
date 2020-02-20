@@ -12,7 +12,7 @@ infixr 6 $:
 f |: x =  f x
 infixr 8 |:
 
-(+++) :: DataExpr a -> DataExpr a -> DataExpr a
+(+++) :: RuleExpr a -> RuleExpr a -> RuleExpr a
 a +++ b = Both a b
 infixr 7 +++
 
@@ -26,4 +26,5 @@ of' fieldName = sumOver fieldName (Just "Portfolio")
 numberOfRelativeTo = GroupValueExpr . CountDistinct
 numberOf = GroupValueExpr . CountDistinct
 forall = PosValueExpr . Get
-sumOf field = GroupValueExpr (SumOver field Nothing)
+sumOf field rel = GroupValueExpr (SumOver field rel)
+relativeTo group = Just group

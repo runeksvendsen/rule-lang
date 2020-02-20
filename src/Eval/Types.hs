@@ -13,7 +13,7 @@ import LangPrelude
 import Absyn
 import qualified Data.Aeson                             as Json
 import qualified Data.List.NonEmpty                     as NE
-
+import qualified Data.Text                              as T
 
 data Level = Level
     { lGroupName    :: GroupName    -- e.g. "Country" or "SecurityID"
@@ -21,14 +21,21 @@ data Level = Level
     }  deriving Show
 
 instance Json.ToJSON Level where
-    toJSON (Level name val) = Json.String $ name <> "/" <> toS (show val)
+    toJSON (Level name val) =
+        let showField (Json.Object _) = "<object>"
+            showField (Json.Array _) = "<array>"
+            showField (Json.String txt) = txt
+            showField (Json.Number num) = T.pack $ printf "%f" (realToFrac num :: Double)
+            showField (Json.Bool b) = if b then "true" else "false"
+            showField Json.Null = "<null>"
+        in Json.String $ name <> "/" <> showField val
 
 data LevelPos = LevelPos
     { lpLevel       :: Level            -- e.g. "Country"
     , lpPositions   :: NonEmpty Position
     }
 
-type Position = HashMap Text Json.Value
+type Position = Map Text Json.Value
 
 levelPosLevel :: NonEmpty LevelPos -> NonEmpty Level
 levelPosLevel = NE.map lpLevel

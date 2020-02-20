@@ -3,12 +3,16 @@ module Eval.Monad
 , runEvalM
 , fatalError
 , throwLeft
-, enterScope
+, enterLevel
+, exitCurrentLevel
+, currentLevelPosM
+, portfolioPosM
+, replaceCurrentLevelPos
 , addResults
 , rulePassed
 , ruleViolated
 , notConsidered
-, mkGroupingM
+, mkCurrentLevelGroupingM
 , lookupField
 , lookupFields
 , lookupLevel
@@ -23,6 +27,7 @@ import Eval.Types
 import qualified Eval.Result                            as R
 import qualified Eval.Grouping                          as G
 
+import qualified Data.Aeson                             as Json
 import qualified Data.List.NonEmpty                     as NE
 import           Control.Monad.Trans.Class
 import qualified Control.Monad.Trans.Except             as E
@@ -30,10 +35,13 @@ import qualified Control.Monad.Trans.State.Strict       as S
 import qualified Control.Monad.Trans.Writer.Strict      as W
 
 
-type EvalM = S.StateT [R.Level] (W.WriterT [R.Result] (E.Except Text))
+type EvalM = S.StateT (NonEmpty LevelPos) (W.WriterT [R.Result] (E.Except Text))
 
-runEvalM :: EvalM () -> Either Text [R.Result]
-runEvalM m = E.runExcept . W.execWriterT $ S.runStateT m []
+runEvalM :: NonEmpty Position -> EvalM () -> Either Text [R.Result]
+runEvalM portfolioPositions m =
+    E.runExcept . W.execWriterT $ S.runStateT m (nonEmpty initialLevel)
+  where
+    initialLevel = LevelPos (Level "Portfolio" (Json.String "")) portfolioPositions
 
 fatalError :: Text -> EvalM a
 fatalError = throwLeft . Left
@@ -41,13 +49,38 @@ fatalError = throwLeft . Left
 throwLeft :: Either Text a -> EvalM a
 throwLeft = lift . lift . E.except
 
-enterScope :: R.Level -> EvalM ()
-enterScope l = S.modify (l :)
+allLevelsM :: EvalM (NonEmpty LevelPos)
+allLevelsM = S.get
+
+enterLevel :: LevelPos -> EvalM ()
+enterLevel lp = S.modify (lp `cons`)
+
+exitCurrentLevel :: EvalM ()
+exitCurrentLevel =
+    S.modify removeLevel
+  where
+    errorMessage = "BUG: 'exitCurrentLevel' at Portfolio level"
+    removeLevel =
+        fromMaybe (error errorMessage) . NE.nonEmpty . NE.tail
+
+currentLevelPosM :: EvalM (NonEmpty Position)
+currentLevelPosM = currentLevelPos <$> S.get
+
+-- | Get Portfolio-level positions (may be filtered)
+portfolioPosM :: EvalM (NonEmpty Position)
+portfolioPosM = lpPositions . NE.last <$> S.get
+
+-- | Used when filtering
+replaceCurrentLevelPos :: NonEmpty Position -> EvalM ()
+replaceCurrentLevelPos positions =
+    S.modify (\levels -> replaceHead levels (newCurrentLevel levels))
+  where
+    newCurrentLevel levels = (currentLevel levels) { lpPositions = positions }
 
 logResult :: R.ResultStatus -> NonEmpty Position -> EvalM ()
 logResult status positions = do
     scope <- S.get
-    addResults [R.Result positions scope status]
+    addResults [R.Result positions (NE.map lpLevel scope) status]
 
 addResults :: [R.Result] -> EvalM ()
 addResults = lift . W.tell
@@ -61,16 +94,16 @@ ruleViolated = logResult R.RuleViolated
 notConsidered :: NonEmpty Position -> EvalM ()
 notConsidered = logResult R.NotConsidered
 
-mkGroupingM
+mkCurrentLevelGroupingM
     :: Groupable fieldValue
     => FieldName
     -> (Position -> Maybe fieldValue)
-    -> NonEmpty Position
     -> EvalM (Map fieldValue (NonEmpty Position))
-mkGroupingM fieldName f values =
-    let (dataMissesM, grouping) = G.mkGroupingMaybe f values
-    in do maybe (return ()) (logResult (R.MissingField fieldName)) dataMissesM
-          return grouping
+mkCurrentLevelGroupingM fieldName f = do
+    currentLevelPositions <- currentLevelPosM
+    let (dataMissesM, grouping) = G.mkGroupingMaybe f currentLevelPositions
+    whenJust dataMissesM $ logResult (R.MissingField fieldName)
+    return grouping
 
 lookupField :: FieldName -> Position -> EvalM (Maybe FieldValue)
 lookupField fieldName pos =
@@ -88,8 +121,10 @@ lookupFields fieldName positions = do
   where
     addPos pos valueM = fmap (\val -> (pos, val)) valueM
 
-lookupLevel :: GroupName -> NonEmpty LevelPos -> EvalM (NonEmpty Position)
-lookupLevel groupName = lookupLevel' groupName . NE.toList
+lookupLevel :: GroupName -> EvalM (NonEmpty Position)
+lookupLevel groupName = do
+    currentLevel <- allLevelsM
+    lookupLevel' groupName (NE.toList currentLevel)
 
 lookupLevel' :: GroupName -> [LevelPos] -> EvalM (NonEmpty Position)
 lookupLevel' groupName [] = fatalError $ "Grouping '" <> groupName <> "' doesn't exist"

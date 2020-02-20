@@ -3,6 +3,7 @@ module Absyn where
 import LangPrelude
 import qualified Data.Aeson                 as Json
 
+
 type FieldName = Text
 type FieldValue = Json.Value
 type GroupName = Text
@@ -46,25 +47,25 @@ data ValueExpr =
 data Comparison = -- eval: Bool
       Comparison ValueExpr (Value -> Value -> Bool) Value
 
-data DataExpr a
-    -- Two DataExpr in the same context.
+data RuleExpr a
+    -- Two RuleExpr in the same context.
     -- Example (two "Rule"):
     --      for each X:
     --          value of Y <= 10%
     --          number of distinct Z >= 6
-    = Both (DataExpr a) (DataExpr a)
+    = Both (RuleExpr a) (RuleExpr a)
 
     -- let varName = exprA in varNameScopeExpr
-    | Let Text (DataExpr a) (DataExpr a)   -- name rhs scope
+    | Let Text (RuleExpr a) (RuleExpr a)   -- name rhs scope
 
     -- varName
     | Var Text
 
     -- for each SomeField: expr
-    | GroupBy FieldName (DataExpr a)           -- field scope
+    | GroupBy FieldName (RuleExpr a)           -- field scope
 
-    -- where ... (NB: ending colon signifies 'Just DataExpr')
-    | Filter Comparison (Maybe (DataExpr a))
+    -- where ... (NB: ending colon signifies 'Just RuleExpr')
+    | Filter Comparison (Maybe (RuleExpr a))
 
     -- <some conditions that must be true>
     | Rule  Comparison

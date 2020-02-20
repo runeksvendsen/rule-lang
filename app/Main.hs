@@ -6,7 +6,6 @@ import LangPrelude
 import qualified Output
 import qualified Analyze.Check
 import qualified Eval.Eval                        as Eval
-import qualified Eval.Types                       as T
 import qualified Test
 
 import           Text.Printf                      (printf)
@@ -21,7 +20,7 @@ main :: IO ()
 main = do
     inputFile <- argOrFail <$> getArgs
     positions <- value . handleDecodeResult <$> Json.eitherDecodeFileStrict' inputFile
-    printJson . handleEvalResult $ Eval.eval Test.thirtyfiveThirtySix (nonEmpty positions)
+    printJson . handleEvalResult $ Eval.eval (nonEmpty positions) Test.thirtyfiveThirtySix
   where
     nonEmpty = fromMaybe (error "ERROR: Empty input data") . NE.nonEmpty
     printJson = Char8.putStrLn . Json.encode . Output.toObjectSecId
@@ -40,7 +39,7 @@ mainCheck = do
     forM_ errors (\s -> putStrLn . T.unpack $ "\t" <> s)
 
 data JsonData = JsonData
-    { value   :: [T.Position]
+    { value   :: [Eval.Position]
     } deriving Generic
 
 instance Json.FromJSON JsonData

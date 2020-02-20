@@ -8,7 +8,7 @@ where
 import LangPrelude
 
 import qualified Data.List.NonEmpty         as NE
-import qualified Data.HashMap.Strict        as Map
+import qualified Data.HashMap.Strict        as M
 
 
 mkGrouping
@@ -21,7 +21,7 @@ mkGrouping f =
   where
     folder item (errors, map) =
         case f item of
-            Right val  -> (errors, Map.insertWith insertFunc val (NE.fromList [item]) map)
+            Right val  -> (errors, M.insertWith insertFunc val (NE.fromList [item]) map)
             Left error -> (error : errors, map)
     insertFunc new old = (NE.head new) `NE.cons` old
 
@@ -35,7 +35,7 @@ mkGroupingMaybe f =
   where
     folder val (errorValsM, map) =
         case f val of
-            Just key -> (errorValsM, Map.insertWith insertFunc key (NE.fromList [val]) map)
+            Just key -> (errorValsM, M.insertWith insertFunc key (NE.fromList [val]) map)
             Nothing  -> (consMaybeNE val errorValsM, map)
     insertFunc new old = (NE.head new) `NE.cons` old
 

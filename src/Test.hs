@@ -5,18 +5,22 @@ import Absyn
 import Syntax
 
 -- 35-30-6
+thirtyfiveThirtySix :: RuleExpr a
 thirtyfiveThirtySix =
-    forEach "Issuer" $:
-        where' (sumOf "Value") (>) (Percent 35.0) $:
-            rule (numberOf "SecurityID") (>=) (Count 6)
+    forEach "IssuerName" $:
+        where' (sumOf value (relativeTo "Portfolio")) (>) (Percent 35) $:
+            rule (numberOf issue) (>=) (Count 6)
             +++
-            forEach "Issue" |:
-                rule (sumOf "Value") (<=) (Percent 30)
+            forEach issue |:
+                rule (sumOf value (relativeTo "Portfolio")) (<=) (Percent 30)
+  where
+    value = "DirtyValueTotalRC"
+    issue = "SecurityID"
 
 {-
     for each Issuer:
-        where value of Issuer (relative to portfolio) > 35%:
+        where Value of Issuer (relative to portfolio) > 35%:
             rule number of distinct SecurityID (at Portfolio level) >= 6
             for each Issue (group by SecurityID):
-                rule value of Issue (relative to Portfolio value) <= 30%
+                rule Value of Issue (relative to Portfolio value) <= 30%
 -}

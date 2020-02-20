@@ -6,9 +6,9 @@ where
 
 import LangPrelude
 import Absyn
-import qualified Data.HashMap.Strict        as Map
+import qualified Data.HashMap.Strict        as M
 
 lookupEnv :: FieldName -> Env a -> Maybe a
-lookupEnv = Map.lookup
+lookupEnv = M.lookup
 
-type Env a = HashMap FieldName a
+type Env a = Map FieldName a

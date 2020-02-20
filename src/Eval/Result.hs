@@ -13,7 +13,7 @@ import Eval.Types
 
 data Result = Result
     { rPosition :: NonEmpty Position
-    , rScope    :: [Level]  -- ^ The empty list is the top level. The head of the list defines the innermost scope.
+    , rScope    :: NonEmpty Level       -- ^ The head of the list defines the innermost scope.
     , rStatus   :: ResultStatus
     } deriving Show
 
