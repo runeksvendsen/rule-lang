@@ -17,13 +17,13 @@ import qualified Data.Aeson                 as Json
 import qualified Data.List.NonEmpty         as NE
 
 
-eval :: NonEmpty Position -> RuleExpr a -> Either Text [Result]
+eval :: NonEmpty Position -> RuleExpr -> Either Text [Result]
 eval portfolioPositions expr =
     runEvalM portfolioPositions $ evalRec emptyMap expr
 
 evalRec
-    :: Env (RuleExpr a)     -- Variables
-    -> RuleExpr a
+    :: Env RuleExpr     -- Variables
+    -> RuleExpr
     -> EvalM ()
 evalRec varEnv expr =
     case expr of

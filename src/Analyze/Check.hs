@@ -7,7 +7,7 @@ import LangPrelude
 import Absyn
 
 
-checkData :: RuleExpr a -> [Text]
+checkData :: RuleExpr -> [Text]
 checkData expr =
     let aux errors groupEnv varEnv expr =
             case expr of

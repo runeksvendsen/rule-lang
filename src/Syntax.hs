@@ -12,7 +12,7 @@ infixr 6 $:
 f |: x =  f x
 infixr 8 |:
 
-(+++) :: RuleExpr a -> RuleExpr a -> RuleExpr a
+(+++) :: RuleExpr -> RuleExpr -> RuleExpr
 a +++ b = Both a b
 infixr 7 +++
 

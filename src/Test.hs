@@ -5,7 +5,7 @@ import Absyn
 import Syntax
 
 -- 35-30-6
-thirtyfiveThirtySix :: RuleExpr a
+thirtyfiveThirtySix :: RuleExpr
 thirtyfiveThirtySix =
     forEach "IssuerName" $:
         where' (sumOf value (relativeTo "Portfolio")) Gt (Percent 35) $:

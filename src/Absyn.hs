@@ -66,25 +66,25 @@ data ValueExpr =
 data Comparison =
       Comparison ValueExpr BoolCompare Value
 
-data RuleExpr a
+data RuleExpr
     -- Two RuleExpr in the same context.
     -- Example (two "Rule"):
     --      for each X:
     --          value of Y <= 10%
     --          number of distinct Z >= 6
-    = Both (RuleExpr a) (RuleExpr a)
+    = Both RuleExpr RuleExpr
 
     -- let varName = exprA in varNameScopeExpr
-    | Let Text (RuleExpr a) (RuleExpr a)   -- name rhs scope
+    | Let Text RuleExpr RuleExpr   -- name rhs scope
 
     -- varName
     | Var Text
 
     -- for each SomeField: expr
-    | GroupBy FieldName (RuleExpr a)           -- field scope
+    | GroupBy FieldName RuleExpr           -- field scope
 
     -- where ... (NB: ending colon signifies 'Just RuleExpr')
-    | Filter Comparison (Maybe (RuleExpr a))
+    | Filter Comparison (Maybe RuleExpr)
 
     -- <some conditions that must be true>
     | Rule Comparison
