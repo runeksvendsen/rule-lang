@@ -15,7 +15,7 @@ data Result = Result
     { rPosition :: NonEmpty Position
     , rScope    :: NonEmpty Level       -- ^ The head of the list defines the innermost scope.
     , rStatus   :: ResultStatus
-    } deriving Show
+    } deriving (Show, Eq)
 
 -- |
 data ResultStatus
@@ -25,4 +25,4 @@ data ResultStatus
     | NotConsidered     -- ^ Filtered away (by "when")
     | MissingField FieldName    -- ^ No such field exists (e.g. no such field as "Issuer")
     | FieldTypeError    -- ^ Field data type incompatible with operation (e.g. "sum" on a field containing a 'String')
-        deriving (Eq, Show, Generic)
+        deriving (Eq, Show, Ord, Generic)

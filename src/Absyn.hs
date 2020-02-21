@@ -20,6 +20,7 @@ data PosValueExpr =
       -- Violator: (FieldName, Position)
       -- "InstrumentType"
       Get FieldName
+        deriving (Eq, Show)
 
 -- A value for a group
 data GroupValueExpr =
@@ -30,10 +31,12 @@ data GroupValueExpr =
       -- Violator: (FieldName, GroupName, Maybe GroupName)
       -- "{Exposure} {(relative to Country)}"
     | SumOver FieldName (Maybe GroupName)
+        deriving (Eq, Show)
 
 data ValueExpr =
       GroupValueExpr GroupValueExpr
     | PosValueExpr PosValueExpr
+        deriving (Eq, Show)
 
 -- Examples:
 --     *Input*                          *ValueExpr*                       *Compare*       *Value*
@@ -44,7 +47,7 @@ data ValueExpr =
 --     grouping     sum     Value                                       <=              2M EUR
 --     grouping     sum     Value           (relative to Portfolio)     >               5%
 --     grouping     sum     Value           (relative to Country)       <               20%
-data Comparison = -- eval: Bool
+data Comparison =
       Comparison ValueExpr (Value -> Value -> Bool) Value
 
 data RuleExpr a
@@ -68,8 +71,8 @@ data RuleExpr a
     | Filter Comparison (Maybe (RuleExpr a))
 
     -- <some conditions that must be true>
-    | Rule  Comparison
-
+    | Rule Comparison
+        deriving Show
 
 
 
@@ -85,12 +88,12 @@ data RuleExpr a
     for each Issuer:
         Value <= 5%
         UNLESS
-        Value <= 10% AND Value min5PercentHoldings <= 40%
+        (Value <= 10% AND Value min5PercentHoldings <= 40%)
 -}
 
 -- 35-30-6
 {-
-    let portfolioLevelIssueCount = count distinct SecurityID >= 6
+    let portfolioLevelIssueCount = count distinct SecurityID (at Portfolio level) >= 6
     for each Issuer:
         where Value > 35%:
             portfolioLevelIssueCount >= 6
@@ -118,7 +121,7 @@ data RuleExpr a
     let max5PercentPositions =
             for each SecurityID:
                 where Value SecurityID <= 5%
-    limit Value max5PercentPositions >= 75%
+    Value max5PercentPositions >= 75%
 -}
 
 -- home-made
@@ -157,3 +160,8 @@ instance Ord Value where
     -- Below throws an error
     (Field _) `compare` (Field _) = error "Not implemented: compare field value"
     compare a b = error $ "Invalid comparison: " ++ show (a, b)
+
+-- TMP:
+instance Show Comparison where
+    show (Comparison valueExpr _ value) =
+        "(Comparison (" ++ show valueExpr ++ ") (" ++ show value ++ "))"

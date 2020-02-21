@@ -6,6 +6,8 @@ module Eval.Types
 , levelPosLevel
 , currentLevel
 , currentLevelPos
+  -- * Helper functions (TODO: move somewhere else)
+, showValue
 )
 where
 
@@ -18,17 +20,23 @@ import qualified Data.Text                              as T
 data Level = Level
     { lGroupName    :: GroupName    -- e.g. "Country" or "SecurityID"
     , lGroupValue   :: Json.Value   -- e.g. 'String "DK"' or 'Number 12323535'
-    }  deriving Show
+    }  deriving Eq
+
+instance Show Level where
+    show (Level name val) = "(" ++ show name ++ ", " ++ toS (Json.encode val) ++ ")"
 
 instance Json.ToJSON Level where
     toJSON (Level name val) =
-        let showField (Json.Object _) = "<object>"
-            showField (Json.Array _) = "<array>"
-            showField (Json.String txt) = txt
-            showField (Json.Number num) = T.pack $ printf "%f" (realToFrac num :: Double)
-            showField (Json.Bool b) = if b then "true" else "false"
-            showField Json.Null = "<null>"
-        in Json.String $ name <> "/" <> showField val
+        let
+        in Json.String $ name <> " > " <> showValue val
+
+showValue :: Json.Value -> Text
+showValue (Json.Object _) = "[object]"
+showValue (Json.Array _) = "[array]"
+showValue (Json.String txt) = txt
+showValue (Json.Number num) = T.pack $ printf "%f" (realToFrac num :: Double)
+showValue (Json.Bool b) = if b then "true" else "false"
+showValue Json.Null = "(null)"
 
 data LevelPos = LevelPos
     { lpLevel       :: Level            -- e.g. "Country"

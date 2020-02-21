@@ -13,9 +13,9 @@ thirtyfiveThirtySix =
             +++
             forEach issue |:
                 rule (sumOf value (relativeTo "Portfolio")) (<=) (Percent 30)
-  where
-    value = "DirtyValueTotalRC"
-    issue = "SecurityID"
+
+value = "DirtyValueTotalRC"
+issue = "SecurityID"
 
 {-
     for each Issuer:
@@ -24,3 +24,11 @@ thirtyfiveThirtySix =
             for each Issue (group by SecurityID):
                 rule Value of Issue (relative to Portfolio value) <= 30%
 -}
+
+absyn =
+    GroupBy "IssuerName" $
+        Filter (Comparison (GroupValueExpr (SumOver value (Just "Portfolio"))) (>) (Percent 35)) $ Just $ Both
+            (Rule $ Comparison (GroupValueExpr (CountDistinct "SecurityID")) (>=) (Count 6))
+            (GroupBy "SecurityID" $
+                (Rule $ Comparison (GroupValueExpr (SumOver value (Just "Portfolio"))) (<=) (Percent 30))
+            )

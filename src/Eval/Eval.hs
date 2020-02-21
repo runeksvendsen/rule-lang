@@ -27,13 +27,9 @@ evalRec
     -> EvalM ()
 evalRec varEnv expr =
     case expr of
-    Both a b ->
-        let evalCurrentScope = evalRec varEnv
-        in do
-            evalCurrentScope a
-            portfolioPositions <- portfolioPosM
-            res2 <- throwLeft $ runEvalM portfolioPositions $ evalCurrentScope b
-            addResults res2
+    Both a b -> do
+        evalRec varEnv a
+        evalRec varEnv b
 
     Let name rhs scope ->
         evalRec (insert varEnv name rhs) scope
@@ -66,23 +62,44 @@ evalRec varEnv expr =
 evalComparison
     :: Comparison
     -> EvalM (ComparisonResult Position)
-evalComparison (Comparison valueExpr fCompare value) = do
+evalComparison (Comparison valueExpr fCompare value) =
     case valueExpr of
-        GroupValueExpr (CountDistinct fieldName) -> do
+        GroupValueExpr groupValueExpr ->
+            evalComparisonGroup groupValueExpr fCompare value
+        PosValueExpr posValueExpr ->
+            evalComparisonPos posValueExpr fCompare value
+
+evalComparisonGroup
+    :: GroupValueExpr
+    -> (Value -> Value -> Bool)
+    -> Value
+    -> EvalM (ComparisonResult Position)
+evalComparisonGroup groupValueExpr fCompare value = do
+    case groupValueExpr of
+        CountDistinct fieldName -> do
             (positions, count) <- evalCountDistinct fieldName
             return $ groupCompare count positions
-        GroupValueExpr (SumOver fieldName groupNameOpt) -> do
+        SumOver fieldName groupNameOpt -> do
             (positions, sumValue) <- evalSumOver fieldName groupNameOpt
             return $ groupCompare sumValue positions
-        PosValueExpr (Get fieldName) -> do
-            currentLevelPositions <- currentLevelPosM
-            valueFields <- NE.map (fmap Field) <$> lookupFields fieldName currentLevelPositions
-            return $ addManyResults (fCompare value) valueFields
   where
     groupCompare calculatedValue positions = do
         if fCompare calculatedValue value
             then ComparisonResult (Just positions) Nothing
             else ComparisonResult Nothing (Just positions)
+
+evalComparisonPos
+    :: PosValueExpr
+    -> (t -> Value -> Bool)
+    -> t
+    -> EvalM (ComparisonResult Position)
+evalComparisonPos posValueExpr fCompare value = do
+    case posValueExpr of
+        Get fieldName -> do
+            currentLevelPositions <- currentLevelPosM
+            valueFields <- lookupFields fieldName currentLevelPositions
+            return $ addManyResults (fCompare value) (NE.map (fmap Field) valueFields)
+  where
     addManyResults :: (Value -> Bool) -> NonEmpty (Position, Value) -> ComparisonResult Position
     addManyResults f =
         foldr testAdd (ComparisonResult Nothing Nothing)
@@ -120,7 +137,9 @@ evalSum fieldName positions = do
     sumValue <$> mapM pairToDouble jsonFields
   where
     sumValue :: NonEmpty (Position, Double) -> (NonEmpty Position, Double)
-    sumValue posValueList = let unzipped = NE.unzip posValueList in (fst unzipped, sum (snd unzipped))
+    sumValue posValueList =
+        let unzipped = NE.unzip posValueList
+        in (fst unzipped, sum (snd unzipped))
     pairToDouble :: (a, Json.Value) -> EvalM (a, Double)
     pairToDouble (a, val) = toDouble val >>= \double -> return (a, double)
     toDouble :: Json.Value -> EvalM Double

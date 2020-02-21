@@ -43,6 +43,10 @@ runEvalM portfolioPositions m =
   where
     initialLevel = LevelPos (Level "Portfolio" (Json.String "")) portfolioPositions
 
+-- evalTest :: EvalM () -> EvalM (Either Text [R.Result])
+-- evalTest evalM = do
+
+
 fatalError :: Text -> EvalM a
 fatalError = throwLeft . Left
 
@@ -52,8 +56,14 @@ throwLeft = lift . lift . E.except
 allLevelsM :: EvalM (NonEmpty LevelPos)
 allLevelsM = S.get
 
+-- TODO: replace with "withLevel" function
 enterLevel :: LevelPos -> EvalM ()
-enterLevel lp = S.modify (lp `cons`)
+enterLevel lp = S.modify (lp `cons`) -- (\levels -> logString levels `trace` (lp `cons` levels))
+  where
+    logString levels = unlines
+      [ "Entering level: " ++ show (lpLevel lp)
+      , "levels: " ++ concat (NE.intersperse "," (NE.map (show . lpLevel) levels))
+      ]
 
 exitCurrentLevel :: EvalM ()
 exitCurrentLevel =
@@ -61,7 +71,11 @@ exitCurrentLevel =
   where
     errorMessage = "BUG: 'exitCurrentLevel' at Portfolio level"
     removeLevel =
-        fromMaybe (error errorMessage) . NE.nonEmpty . NE.tail
+        fromMaybe (error errorMessage) . NE.nonEmpty . NE.tail -- $ logString levels `trace` levels
+    logString levels = unlines
+      [ "Exiting from levels: " ++ concat (NE.intersperse "," (NE.map (show . lpLevel) levels))
+      , ""
+      ]
 
 currentLevelPosM :: EvalM (NonEmpty Position)
 currentLevelPosM = currentLevelPos <$> S.get

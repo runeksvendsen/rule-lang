@@ -23,7 +23,7 @@ main = do
     printJson . handleEvalResult $ Eval.eval (nonEmpty positions) Test.thirtyfiveThirtySix
   where
     nonEmpty = fromMaybe (error "ERROR: Empty input data") . NE.nonEmpty
-    printJson = Char8.putStrLn . Json.encode . Output.toObjectSecId
+    printJson = Char8.putStrLn . Json.encode . Output.toObjectSecId . NE.fromList
     handleEvalResult (Left e) = error $ "An error occurred evaluating the rule:\n" ++ T.unpack e
     handleEvalResult (Right r) = r
     handleDecodeResult (Left e) = error $ "ERROR: JSON decoding error: \n" ++ e
