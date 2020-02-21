@@ -15,7 +15,7 @@ import LangPrelude
 import Absyn
 import qualified Data.Aeson                             as Json
 import qualified Data.List.NonEmpty                     as NE
-import qualified Data.Text                              as T
+
 
 data Level = Level
     { lGroupName    :: GroupName    -- e.g. "Country" or "SecurityID"
@@ -29,14 +29,6 @@ instance Json.ToJSON Level where
     toJSON (Level name val) =
         let
         in Json.String $ name <> " > " <> showValue val
-
-showValue :: Json.Value -> Text
-showValue (Json.Object _) = "[object]"
-showValue (Json.Array _) = "[array]"
-showValue (Json.String txt) = txt
-showValue (Json.Number num) = T.pack $ printf "%f" (realToFrac num :: Double)
-showValue (Json.Bool b) = if b then "true" else "false"
-showValue Json.Null = "(null)"
 
 data LevelPos = LevelPos
     { lpLevel       :: Level            -- e.g. "Country"

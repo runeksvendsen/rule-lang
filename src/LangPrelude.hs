@@ -24,9 +24,14 @@ import           Data.List.NonEmpty       as NonEmpty (NonEmpty, NonEmpty((:|)),
 import           Protolude.Conv           as Conv
 import           Data.Hashable            (Hashable)
 import           GHC.Generics             as Generic  (Generic)
+import qualified Data.Aeson               as Json
+import qualified Data.Text                as T
 
 
 type Map = HashMap
+
+show' :: Show a => a -> Text
+show' = toS . show
 
 emptyMap :: Map k v
 emptyMap = M.empty
@@ -54,3 +59,11 @@ whenJust (Just x) f = f x
 whenJust _        _ = return ()
 
 type Groupable a = (Eq a, Hashable a)
+
+showValue :: Json.Value -> Text
+showValue (Json.Object _) = "[object]"
+showValue (Json.Array _) = "[array]"
+showValue (Json.String txt) = txt
+showValue (Json.Number num) = T.pack $ printf "%f" (realToFrac num :: Double)
+showValue (Json.Bool b) = if b then "true" else "false"
+showValue Json.Null = "(null)"
