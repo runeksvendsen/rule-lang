@@ -28,6 +28,7 @@ evalRec
 evalRec varEnv expr =
     case expr of
     Both a b -> do
+        -- NB: order of evaluation does not matter
         evalRec varEnv a
         evalRec varEnv b
 
