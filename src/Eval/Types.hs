@@ -6,8 +6,6 @@ module Eval.Types
 , levelPosLevel
 , currentLevel
 , currentLevelPos
-  -- * Helper functions (TODO: move somewhere else)
-, showValue
 )
 where
 

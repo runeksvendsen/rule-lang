@@ -43,10 +43,6 @@ runEvalM portfolioPositions m =
   where
     initialLevel = LevelPos (Level "Portfolio" (Json.String "")) portfolioPositions
 
--- evalTest :: EvalM () -> EvalM (Either Text [R.Result])
--- evalTest evalM = do
-
-
 fatalError :: Text -> EvalM a
 fatalError = throwLeft . Left
 
