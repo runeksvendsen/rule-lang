@@ -62,7 +62,8 @@ evalRec varEnv expr =
 evalComparison
     :: Comparison
     -> EvalM (ComparisonResult Position)
-evalComparison (Comparison valueExpr fCompare value) =
+evalComparison (Comparison valueExpr bCompare value) =
+    let fCompare = comparator bCompare in
     case valueExpr of
         GroupValueExpr groupValueExpr ->
             evalComparisonGroup groupValueExpr fCompare value

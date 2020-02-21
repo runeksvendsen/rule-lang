@@ -8,11 +8,11 @@ import Syntax
 thirtyfiveThirtySix :: RuleExpr a
 thirtyfiveThirtySix =
     forEach "IssuerName" $:
-        where' (sumOf value (relativeTo "Portfolio")) (>) (Percent 35) $:
-            rule (numberOf issue) (>=) (Count 6)
+        where' (sumOf value (relativeTo "Portfolio")) Gt (Percent 35) $:
+            rule (numberOf issue) GtE (Count 6)
             +++
             forEach issue |:
-                rule (sumOf value (relativeTo "Portfolio")) (<=) (Percent 30)
+                rule (sumOf value (relativeTo "Portfolio")) LtE (Percent 30)
 
 value = "DirtyValueTotalRC"
 issue = "SecurityID"
@@ -27,8 +27,8 @@ issue = "SecurityID"
 
 absyn =
     GroupBy "IssuerName" $
-        Filter (Comparison (GroupValueExpr (SumOver value (Just "Portfolio"))) (>) (Percent 35)) $ Just $ Both
-            (Rule $ Comparison (GroupValueExpr (CountDistinct "SecurityID")) (>=) (Count 6))
+        Filter (Comparison (GroupValueExpr (SumOver value (Just "Portfolio"))) Gt (Percent 35)) $ Just $ Both
+            (Rule $ Comparison (GroupValueExpr (CountDistinct "SecurityID")) GtE (Count 6))
             (GroupBy "SecurityID" $
-                (Rule $ Comparison (GroupValueExpr (SumOver value (Just "Portfolio"))) (<=) (Percent 30))
+                (Rule $ Comparison (GroupValueExpr (SumOver value (Just "Portfolio"))) LtE (Percent 30))
             )

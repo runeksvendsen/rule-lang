@@ -1,6 +1,22 @@
-module Absyn where
+module Absyn
+( -- * Abstract syntax
+  RuleExpr(..)
+, Comparison(..)
+, ValueExpr(..)
+, GroupValueExpr(..)
+, PosValueExpr(..)
+, Value(..)
+  -- * Value types
+, FieldName
+, FieldValue
+, GroupName
+  -- * Re-exports
+, module Comparison
+)
+where
 
 import LangPrelude
+import Comparison                           as Comparison
 import qualified Data.Aeson                 as Json
 
 
@@ -48,7 +64,7 @@ data ValueExpr =
 --     grouping     sum     Value           (relative to Portfolio)     >               5%
 --     grouping     sum     Value           (relative to Country)       <               20%
 data Comparison =
-      Comparison ValueExpr (Value -> Value -> Bool) Value
+      Comparison ValueExpr BoolCompare Value
 
 data RuleExpr a
     -- Two RuleExpr in the same context.
