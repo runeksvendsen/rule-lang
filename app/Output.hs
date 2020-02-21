@@ -47,7 +47,7 @@ toMap
 toMap =
     fmap (mapByGroup (showLevels . rScope)) . mapByGroup rStatus
   where
-    showLevels = foldr (<>) "" . intersperse " > " . map (showValue . lGroupValue) . NE.init
+    showLevels = foldr (<>) "" . intersperse " > " . map showLevel . reverse . NE.init
 
 mapByGroup
     :: (Ord k, Hashable k)

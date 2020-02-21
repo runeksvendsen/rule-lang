@@ -18,6 +18,7 @@ where
 import LangPrelude
 import Comparison                           as Comparison
 import qualified Data.Aeson                 as Json
+import           Data.String                (IsString(..))
 
 
 type FieldName = Text
@@ -159,13 +160,19 @@ data RuleExpr
 
 {- #### TYPE CLASS INSTANCES #### -}
 
+instance IsString Value where
+    fromString str = Field $ Json.String (toS str)
+
 -- TODO: static check of invalid comparisons
 instance Eq Value where
     (Count   a) == (Count   b) = a == b
     (Sum     a) == (Sum     b) = a == b
     (Percent a) == (Percent b) = a == b
+    (Field (Json.String strA)) == (Field (Json.String strB)) =
+        strA == strB
     -- Below throws an error
-    (Field _) == (Field _) = error "Not implemented: compare field value"
+    (Field a) == (Field b) =
+        error $ "Field comparison not implemented: " ++ show (a,b)
     (==) a b = error $ "Invalid comparison: " ++ show (a, b)
 
 -- TODO: static check of invalid comparisons
@@ -174,7 +181,11 @@ instance Ord Value where
     (Sum     a) `compare` (Sum     b) = a `compare` b
     (Percent a) `compare` (Percent b) = a `compare` b
     -- Below throws an error
-    (Field _) `compare` (Field _) = error "Not implemented: compare field value"
+    (Field (Json.String strA)) `compare` (Field (Json.String strB)) =
+        strA `compare` strB
+    -- Below throws an error
+    (Field a) `compare` (Field b) =
+        error $ "Field comparison not implemented: " ++ show (a,b)
     compare a b = error $ "Invalid comparison: " ++ show (a, b)
 
 -- TMP:
