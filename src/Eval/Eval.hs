@@ -17,20 +17,31 @@ import qualified Data.Aeson                 as Json
 import qualified Data.List.NonEmpty         as NE
 
 
-eval :: NonEmpty Position -> RuleExpr -> Either Text [Result]
+-- | The boolean value indicates the following:
+--      * True: no data contradicts the rule
+--      * False: some data contradicts the rule
+--
+-- E.g. if every single position in the portfolio is missing data
+--  required to determine whether a rule is broken the result will
+--  be True.
+--
+-- In short:
+--  True = "rule not violated", False = "rule violated".
+eval :: NonEmpty Position -> RuleExpr -> Either Text (Bool, [Result])
 eval portfolioPositions expr =
     runEvalM portfolioPositions $ evalRec emptyMap expr
 
 evalRec
     :: Env RuleExpr     -- Variables
     -> RuleExpr
-    -> EvalM ()
+    -> EvalM Bool
 evalRec varEnv expr =
     case expr of
     Both a b -> do
         -- NB: order of evaluation does not matter
-        evalRec varEnv a
-        evalRec varEnv b
+        resA <- evalRec varEnv a
+        resB <- evalRec varEnv b
+        return (resA && resB)
 
     Let name rhs scope ->
         evalRec (insert varEnv name rhs) scope
@@ -41,23 +52,31 @@ evalRec varEnv expr =
 
     GroupBy field scope -> do
         newGrouping <- mkCurrentLevelGroupingM field (lookup field)
-        forM_ (M.toList newGrouping) $ \(fieldValue, positions) -> do
-            enterLevel $ LevelPos (Level field fieldValue) positions
-            evalRec varEnv scope
-            exitCurrentLevel
+        boolList <- forM (M.toList newGrouping) $ \(fieldValue, positions) -> do
+            withLevel (LevelPos (Level field fieldValue) positions) $
+                evalRec varEnv scope
+        return $ all (== True) boolList
 
     Filter _          Nothing      -> error "Not implemented"
     Filter comparison (Just fExpr) -> do
         compRes <- evalComparison comparison
         whenJust (compareFalse compRes) notConsidered
-        whenJust (compareTrue compRes) $ \positions -> do
+        -- if there are any positions in "compareTrue":
+        --      then: evaluate "fExpr" for these positions
+        --      else: just return True
+        whenJustOr (compareTrue compRes) True $ \positions -> do
             replaceCurrentLevelPos positions
             evalRec varEnv fExpr
 
     Rule comparison -> do
         compRes <- evalComparison comparison
-        whenJust (compareFalse compRes) ruleViolated
         whenJust (compareTrue compRes) rulePassed
+        -- if there are any positions in "compareFalse":
+        --      then: add these positions as "violated rule" and return "False"
+        --      else: just return True
+        whenJustOr (compareFalse compRes) True $ \positions -> do
+            ruleViolated positions
+            return False
 
 
 evalComparison

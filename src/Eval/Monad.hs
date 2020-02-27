@@ -3,8 +3,7 @@ module Eval.Monad
 , runEvalM
 , fatalError
 , throwLeft
-, enterLevel
-, exitCurrentLevel
+, withLevel
 , currentLevelPosM
 , portfolioPosM
 , replaceCurrentLevelPos
@@ -37,9 +36,9 @@ import qualified Control.Monad.Trans.Writer.Strict      as W
 
 type EvalM = S.StateT (NonEmpty LevelPos) (W.WriterT [R.Result] (E.Except Text))
 
-runEvalM :: NonEmpty Position -> EvalM () -> Either Text [R.Result]
+runEvalM :: NonEmpty Position -> EvalM a -> Either Text (a, [R.Result])
 runEvalM portfolioPositions m =
-    E.runExcept . W.execWriterT $ S.runStateT m (nonEmpty initialLevel)
+    E.runExcept . W.runWriterT $ S.evalStateT m (nonEmpty initialLevel)
   where
     initialLevel = LevelPos (Level "Portfolio" (Json.String "")) portfolioPositions
 
@@ -53,6 +52,13 @@ allLevelsM :: EvalM (NonEmpty LevelPos)
 allLevelsM = S.get
 
 -- TODO: replace with "withLevel" function
+withLevel :: LevelPos -> EvalM a -> EvalM a
+withLevel lp action = do
+    enterLevel lp
+    res <- action
+    exitCurrentLevel
+    return res
+
 enterLevel :: LevelPos -> EvalM ()
 enterLevel lp = S.modify (lp `cons`) -- (\levels -> logString levels `trace` (lp `cons` levels))
   where
