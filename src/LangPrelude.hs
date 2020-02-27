@@ -55,11 +55,8 @@ replaceHead :: NonEmpty a -> a -> NonEmpty a
 replaceHead (_ :| xs) x' = x' :| xs
 
 whenJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
-whenJust mb = whenJustOr mb ()
-
-whenJustOr :: Monad m => Maybe a -> b -> (a -> m b) -> m b
-whenJustOr (Just x) _   f = f x
-whenJustOr _        def _ = return def
+whenJust (Just x) f = f x
+whenJust _        _ = return ()
 
 
 type Groupable a = (Eq a, Hashable a)

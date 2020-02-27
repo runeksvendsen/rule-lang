@@ -66,19 +66,20 @@ evalRec varEnv scopeData expr = do
         Filter comparison exprScope -> do
             compRes <- evalComparison comparison scopeData
             whenJust (compareFalse compRes) notConsidered
-            whenJustOr (compareTrue compRes) True $ \positions -> do
-                let newCurrentLevel = (currentLevel scopeData) { lpPositions = positions }
-                evalRec varEnv (replaceHead scopeData newCurrentLevel) exprScope
+            case compareTrue compRes of
+                Nothing -> return True
+                Just positions -> do
+                    let newCurrentLevel = (currentLevel scopeData) { lpPositions = positions }
+                    evalRec varEnv (replaceHead scopeData newCurrentLevel) exprScope
 
         Rule comparison -> do
             compRes <- evalComparison comparison scopeData
             whenJust (compareTrue compRes) rulePassed
-            -- if there are any positions in "compareFalse":
-            --      then: add these positions as "violated rule" and return "False"
-            --      else: just return True
-            whenJustOr (compareFalse compRes) True $ \positions -> do
-                ruleViolated positions
-                return False
+            case compareFalse compRes of
+                Nothing -> return True
+                Just positions -> do
+                    ruleViolated positions
+                    return False
 
 evalComparison
     :: Comparison
