@@ -11,7 +11,7 @@ checkData :: RuleExpr -> [Text]
 checkData expr =
     let aux errors groupEnv varEnv expr =
             case expr of
-                Both a b ->
+                And a b ->
                     let eval = aux [] groupEnv varEnv
                     in eval a <> eval b <> errors
                 Let name rhs scope ->
@@ -20,9 +20,9 @@ checkData expr =
                     let varNotFound = "Variable '" <> var <> "' doesn't exist"
                     in maybe (varNotFound : errors) (aux errors groupEnv varEnv) (lookup var varEnv)
                 GroupBy field scope -> aux errors (field : groupEnv) varEnv scope
-                Filter comparison exprOpt ->
+                Filter comparison expr ->
                     let newErrors = checkComparison groupEnv comparison <> errors
-                    in fromMaybe newErrors $ fmap (aux newErrors groupEnv varEnv) exprOpt
+                    in aux newErrors groupEnv varEnv expr
                 Rule comparison -> checkComparison groupEnv comparison <> errors
     in aux [] ["Portfolio"] emptyMap expr
 

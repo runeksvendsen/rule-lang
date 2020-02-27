@@ -13,12 +13,11 @@ f |: x =  f x
 infixr 8 |:
 
 (+++) :: RuleExpr -> RuleExpr -> RuleExpr
-a +++ b = Both a b
+a +++ b = And a b
 infixr 7 +++
 
 forEach = GroupBy
-where' valExpr fComp value scope = Filter (Comparison valExpr fComp value) (Just scope)
-whereEnd valExpr fComp value = Filter (Comparison valExpr fComp value) Nothing
+where' valExpr fComp value = Filter (Comparison valExpr fComp value)
 rule valExpr fComp value = Rule (Comparison valExpr fComp value)
 sumOver = SumOver
 sumOverRelative fieldName relative = sumOver fieldName (Just relative)

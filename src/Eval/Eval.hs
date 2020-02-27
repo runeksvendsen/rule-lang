@@ -37,36 +37,35 @@ evalRec
     -> EvalM Bool
 evalRec varEnv expr =
     case expr of
-    Both a b -> do
+    And a b -> do
         -- NB: order of evaluation does not matter
         resA <- evalRec varEnv a
         resB <- evalRec varEnv b
         return (resA && resB)
 
-    Let name rhs scope ->
-        evalRec (insert varEnv name rhs) scope
+    Let name rhs scopeExpr ->
+        evalRec (insert varEnv name rhs) scopeExpr
 
     Var var ->
         let varNotFound = "Variable '" <> var <> "' doesn't exist"
         in maybe (fatalError varNotFound) (evalRec varEnv) (lookup var varEnv)
 
-    GroupBy field scope -> do
+    GroupBy field scopeExpr -> do
         newGrouping <- mkCurrentLevelGroupingM field (lookup field)
         boolList <- forM (M.toList newGrouping) $ \(fieldValue, positions) -> do
             withLevel (LevelPos (Level field fieldValue) positions) $
-                evalRec varEnv scope
+                evalRec varEnv scopeExpr
         return $ all (== True) boolList
 
-    Filter _          Nothing      -> error "Not implemented"
-    Filter comparison (Just fExpr) -> do
+    Filter comparison scopeExpr -> do
         compRes <- evalComparison comparison
         whenJust (compareFalse compRes) notConsidered
         -- if there are any positions in "compareTrue":
-        --      then: evaluate "fExpr" for these positions
+        --      then: evaluate "scopeExpr" for these positions
         --      else: just return True
         whenJustOr (compareTrue compRes) True $ \positions -> do
             replaceCurrentLevelPos positions
-            evalRec varEnv fExpr
+            evalRec varEnv scopeExpr
 
     Rule comparison -> do
         compRes <- evalComparison comparison
