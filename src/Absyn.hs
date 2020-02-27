@@ -84,8 +84,9 @@ data RuleExpr
     -- for each SomeField: expr
     | GroupBy FieldName RuleExpr           -- field scope
 
-    -- where ... (NB: ending colon signifies 'Just RuleExpr')
-    | Filter Comparison (Maybe RuleExpr)
+    -- where InstrumentType == Bond
+    -- where Value of Issuer relative to Country <= 15%
+    | Filter Comparison RuleExpr
 
     -- <some conditions that must be true>
     | Rule Comparison

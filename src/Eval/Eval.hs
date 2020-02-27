@@ -63,13 +63,12 @@ evalRec varEnv scopeData expr = do
                 evalRec varEnv (newLevel `cons` scopeData) scope
             return $ all (== True) boolList
 
-        Filter _          Nothing      -> error "Not implemented"
-        Filter comparison (Just fExpr) -> do
+        Filter comparison exprScope -> do
             compRes <- evalComparison comparison scopeData
             whenJust (compareFalse compRes) notConsidered
             whenJustOr (compareTrue compRes) True $ \positions -> do
                 let newCurrentLevel = (currentLevel scopeData) { lpPositions = positions }
-                evalRec varEnv (replaceHead scopeData newCurrentLevel) fExpr
+                evalRec varEnv (replaceHead scopeData newCurrentLevel) exprScope
 
         Rule comparison -> do
             compRes <- evalComparison comparison scopeData
