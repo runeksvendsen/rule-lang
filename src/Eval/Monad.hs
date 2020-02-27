@@ -23,7 +23,6 @@ import Eval.Types
 import qualified Eval.Result                            as R
 import qualified Eval.Grouping                          as G
 
-import qualified Data.Aeson                             as Json
 import qualified Data.List.NonEmpty                     as NE
 import           Control.Monad.Trans.Class
 import qualified Control.Monad.Trans.Except             as E
@@ -85,7 +84,7 @@ lookupFields fieldName positions = do
     let finalResultM = NE.nonEmpty . catMaybes . NE.toList $ results
     case finalResultM of
         Nothing -> fatalError $ "No positions with field name '" <> fieldName <> "'"
-        Just nonEmpty -> return nonEmpty
+        Just posValues -> return posValues
   where
     addPos pos valueM = fmap (\val -> (pos, val)) valueM
 

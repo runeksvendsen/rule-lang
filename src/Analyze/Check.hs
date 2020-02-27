@@ -8,7 +8,7 @@ import Absyn
 
 
 checkData :: RuleExpr -> [Text]
-checkData expr =
+checkData expr' =
     let aux errors groupEnv varEnv expr =
             case expr of
                 And a b ->
@@ -20,11 +20,11 @@ checkData expr =
                     let varNotFound = "Variable '" <> var <> "' doesn't exist"
                     in maybe (varNotFound : errors) (aux errors groupEnv varEnv) (lookup var varEnv)
                 GroupBy field scope -> aux errors (field : groupEnv) varEnv scope
-                Filter comparison expr ->
+                Filter comparison exprScope ->
                     let newErrors = checkComparison groupEnv comparison <> errors
-                    in aux newErrors groupEnv varEnv expr
+                    in aux newErrors groupEnv varEnv exprScope
                 Rule comparison -> checkComparison groupEnv comparison <> errors
-    in aux [] ["Portfolio"] emptyMap expr
+    in aux [] ["Portfolio"] emptyMap expr'
 
 checkComparison
     :: [GroupName]

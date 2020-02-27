@@ -10,7 +10,6 @@ dependencies:
 
 ghc-options:
   - -Wall
-  - -Wno-name-shadowing
 
 default-extensions:
   - OverloadedStrings

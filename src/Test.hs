@@ -1,6 +1,6 @@
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 module Test where
 
-import Prelude
 import Absyn
 import Syntax
 

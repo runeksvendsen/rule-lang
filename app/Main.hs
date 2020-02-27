@@ -21,11 +21,11 @@ main = do
     inputFile <- argOrFail <$> getArgs
     positions <- value . handleDecodeResult <$> Json.eitherDecodeFileStrict' inputFile
     let (success, results) = handleEvalResult $
-            Eval.eval (nonEmpty positions) Test.thirtyfiveThirtySix
+            Eval.eval (toNonEmpty positions) Test.thirtyfiveThirtySix
     hPutStrLn stderr $ "Rule violated: " ++ show (not success)
     printJson results
   where
-    nonEmpty = fromMaybe (error "ERROR: Empty input data") . NE.nonEmpty
+    toNonEmpty = fromMaybe (error "ERROR: Empty input data") . NE.nonEmpty
     printJson = Char8.putStrLn . Json.encode . Output.toObjectSecId . NE.fromList
     handleEvalResult (Left e) = error $ "An error occurred evaluating the rule:\n" ++ T.unpack e
     handleEvalResult (Right r) = r

@@ -1,7 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Eval.Grouping
-( mkGrouping
-, mkGroupingMaybe
+( mkGroupingMaybe
 )
 where
 
@@ -11,20 +10,6 @@ import qualified Data.List.NonEmpty         as NE
 import qualified Data.HashMap.Strict        as M
 
 
-mkGrouping
-    :: Groupable key
-    => (val -> Either e key)
-    -> NE.NonEmpty val
-    -> ([e], Map key (NE.NonEmpty val))
-mkGrouping f =
-    foldr folder ([], emptyMap) . NE.toList
-  where
-    folder item (errors, map) =
-        case f item of
-            Right val  -> (errors, M.insertWith insertFunc val (NE.fromList [item]) map)
-            Left error -> (error : errors, map)
-    insertFunc new old = (NE.head new) `NE.cons` old
-
 mkGroupingMaybe
     :: Groupable key
     => (val -> Maybe key)
@@ -33,8 +18,8 @@ mkGroupingMaybe
 mkGroupingMaybe f =
     foldr folder (Nothing, emptyMap) . NE.toList
   where
-    folder val (errorValsM, map) =
+    folder val (errorValsM, groupingMap) =
         case f val of
-            Just key -> (errorValsM, M.insertWith insertFunc key (NE.fromList [val]) map)
-            Nothing  -> (consMaybeNE val errorValsM, map)
+            Just key -> (errorValsM, M.insertWith insertFunc key (NE.fromList [val]) groupingMap)
+            Nothing  -> (consMaybeNE val errorValsM, groupingMap)
     insertFunc new old = (NE.head new) `NE.cons` old
