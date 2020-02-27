@@ -96,6 +96,23 @@ data RuleExpr
 
 {- ####  EXAMPLES #### -}
 
+-- complex
+{-
+    let homeCountry = "DK"
+    let foreignCountries = group by Country: where Country <> homeCountry
+    for each (Country in) foreignCountries:
+        let countryValue = Value of Country relative to Portfolio
+        let numCountrySecurities = count distinct SecurityId at Country level
+        if countryValue > 60%:
+            numCountrySecurities >= 20
+            (AND)
+            for each SecurityID:
+                Value of SecurityID relative to Country <= 5%
+        else if countryVal > 40%:
+            numCountrySecurities >= 10
+
+-}
+
 -- 5-10-40
 {-
 
