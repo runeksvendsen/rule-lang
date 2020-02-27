@@ -6,7 +6,6 @@ module Eval.Types
 , levelPosLevel
 , currentLevel
 , currentLevelPos
-, showLevel
 )
 where
 
@@ -16,15 +15,13 @@ import qualified Data.Aeson                             as Json
 import qualified Data.List.NonEmpty                     as NE
 
 
+-- | Information about a group of elements in a "group by".
+--   Associated with one or more items whose field name ('lGroupName')
+--    all contain the same value ('lGroupValue').
 data Level = Level
     { lGroupName    :: GroupName    -- e.g. "Country" or "SecurityID"
     , lGroupValue   :: Json.Value   -- e.g. 'String "DK"' or 'Number 12323535'
     }  deriving (Eq, Show)
-
-instance Json.ToJSON Level where
-    toJSON (Level name val) =
-        let
-        in Json.String $ name <> ": " <> showValue val
 
 data LevelPos = LevelPos
     { lpLevel       :: Level            -- e.g. "Country"
@@ -41,6 +38,3 @@ currentLevel = NE.head
 
 currentLevelPos :: NonEmpty LevelPos -> NonEmpty Position
 currentLevelPos = lpPositions . currentLevel
-
-showLevel (Level name val) =
-    name <> "=" <> showValue val

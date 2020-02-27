@@ -10,6 +10,7 @@ import qualified Data.HashMap.Strict              as M
 import           Data.Hashable                    (Hashable)
 import qualified Data.Aeson                       as Json
 import qualified Data.List.NonEmpty               as NE
+import qualified Data.Text                        as T
 
 
 instance Hashable ResultStatus
@@ -47,7 +48,8 @@ toMap
 toMap =
     fmap (mapByGroup (showLevels . rScope)) . mapByGroup rStatus
   where
-    showLevels = foldr (<>) "" . intersperse " > " . map showLevel . reverse . NE.init
+    showLevels = T.concat . intersperse " > " . map showLevel . reverse . NE.init
+    showLevel (Level name val) = name <> "=" <> showValue val
 
 mapByGroup
     :: (Ord k, Hashable k)
