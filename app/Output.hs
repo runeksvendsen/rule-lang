@@ -48,7 +48,7 @@ toMap
 toMap =
     fmap (mapByGroup (showLevels . rScope)) . mapByGroup rStatus
   where
-    showLevels = T.concat . intersperse " > " . map showLevel . reverse . NE.init
+    showLevels = T.concat . intersperse " > " . ("Portfolio" :) . map showLevel . reverse . NE.init
     showLevel (Level name val) = name <> "=" <> showValue val
 
 mapByGroup
