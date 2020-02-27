@@ -3,9 +3,12 @@ module Eval.Types
 ( Level(..)
 , LevelPos(..)
 , Position
-, levelPosLevel
+, ScopeData
+, GroupScope
+, groupScope
 , currentLevel
 , currentLevelPos
+, portfolioLevelPos
 )
 where
 
@@ -29,12 +32,18 @@ data LevelPos = LevelPos
     }
 
 type Position = Map Text Json.Value
+type ScopeData = NonEmpty LevelPos
+type GroupScope = NonEmpty Level
 
-levelPosLevel :: NonEmpty LevelPos -> NonEmpty Level
-levelPosLevel = NE.map lpLevel
+groupScope :: ScopeData -> NonEmpty Level
+groupScope = NE.map lpLevel
 
-currentLevel :: NonEmpty LevelPos -> LevelPos
+currentLevel :: ScopeData -> LevelPos
 currentLevel = NE.head
 
-currentLevelPos :: NonEmpty LevelPos -> NonEmpty Position
+currentLevelPos :: ScopeData -> NonEmpty Position
 currentLevelPos = lpPositions . currentLevel
+
+-- | Get positions in the "Portfolio" (outermost) scope
+portfolioLevelPos :: ScopeData -> NonEmpty Position
+portfolioLevelPos = lpPositions . NE.last

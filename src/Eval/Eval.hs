@@ -29,81 +29,86 @@ import qualified Data.List.NonEmpty         as NE
 --  True = "rule not violated", False = "rule violated".
 eval :: NonEmpty Position -> RuleExpr -> Either Text (Bool, [Result])
 eval portfolioPositions expr =
-    runEvalM portfolioPositions $ evalRec emptyMap expr
+    runEvalM (nonEmpty initialScope) $ evalRec emptyMap initialScopeData expr
+  where
+    initialScopeData = nonEmpty $ LevelPos initialScope portfolioPositions
+    initialScope = Level "Portfolio" (Json.String "")
 
 evalRec
     :: Env RuleExpr     -- Variables
+    -> ScopeData
     -> RuleExpr
     -> EvalM Bool
-evalRec varEnv expr =
+evalRec varEnv scopeData expr = do
+    -- Used for logging a result that contains the current scope
+    setCurrentScope (groupScope scopeData)
     case expr of
-    Both a b -> do
-        -- NB: order of evaluation does not matter
-        resA <- evalRec varEnv a
-        resB <- evalRec varEnv b
-        return (resA && resB)
+        Both a b -> do
+            -- NB: order of evaluation does not matter
+            resA <- evalRec varEnv scopeData a
+            resB <- evalRec varEnv scopeData b
+            return (resA && resB)
 
-    Let name rhs scope ->
-        evalRec (insert varEnv name rhs) scope
+        Let name rhs scope ->
+            evalRec (insert varEnv name rhs) scopeData scope
 
-    Var var ->
-        let varNotFound = "Variable '" <> var <> "' doesn't exist"
-        in maybe (fatalError varNotFound) (evalRec varEnv) (lookup var varEnv)
+        Var var ->
+            let varNotFound = "Variable '" <> var <> "' doesn't exist"
+            in maybe (fatalError varNotFound) (evalRec varEnv scopeData) (lookup var varEnv)
 
-    GroupBy field scope -> do
-        newGrouping <- mkCurrentLevelGroupingM field (lookup field)
-        boolList <- forM (M.toList newGrouping) $ \(fieldValue, positions) -> do
-            withLevel (LevelPos (Level field fieldValue) positions) $
-                evalRec varEnv scope
-        return $ all (== True) boolList
+        GroupBy field scope -> do
+            newGrouping <- mkCurrentLevelGroupingM field (currentLevelPos scopeData)
+            boolList <- forM (M.toList newGrouping) $ \(fieldValue, positions) -> do
+                let newLevel = LevelPos (Level field fieldValue) positions
+                evalRec varEnv (newLevel `cons` scopeData) scope
+            return $ all (== True) boolList
 
-    Filter _          Nothing      -> error "Not implemented"
-    Filter comparison (Just fExpr) -> do
-        compRes <- evalComparison comparison
-        whenJust (compareFalse compRes) notConsidered
-        -- if there are any positions in "compareTrue":
-        --      then: evaluate "fExpr" for these positions
-        --      else: just return True
-        whenJustOr (compareTrue compRes) True $ \positions -> do
-            replaceCurrentLevelPos positions
-            evalRec varEnv fExpr
+        Filter _          Nothing      -> error "Not implemented"
+        Filter comparison (Just fExpr) -> do
+            compRes <- evalComparison comparison scopeData
+            whenJust (compareFalse compRes) notConsidered
+            whenJustOr (compareTrue compRes) True $ \positions -> do
+                let newCurrentLevel = (currentLevel scopeData) { lpPositions = positions }
+                evalRec varEnv (replaceHead scopeData newCurrentLevel) fExpr
 
-    Rule comparison -> do
-        compRes <- evalComparison comparison
-        whenJust (compareTrue compRes) rulePassed
-        -- if there are any positions in "compareFalse":
-        --      then: add these positions as "violated rule" and return "False"
-        --      else: just return True
-        whenJustOr (compareFalse compRes) True $ \positions -> do
-            ruleViolated positions
-            return False
-
+        Rule comparison -> do
+            compRes <- evalComparison comparison scopeData
+            whenJust (compareTrue compRes) rulePassed
+            -- if there are any positions in "compareFalse":
+            --      then: add these positions as "violated rule" and return "False"
+            --      else: just return True
+            whenJustOr (compareFalse compRes) True $ \positions -> do
+                ruleViolated positions
+                return False
 
 evalComparison
     :: Comparison
+    -> ScopeData
     -> EvalM (ComparisonResult Position)
-evalComparison (Comparison valueExpr bCompare value) =
+evalComparison (Comparison valueExpr bCompare value) scopeData =
     let fCompare = comparator bCompare in
     case valueExpr of
         GroupValueExpr groupValueExpr ->
-            evalComparisonGroup groupValueExpr fCompare value
+            evalComparisonGroup groupValueExpr fCompare value scopeData
         PosValueExpr posValueExpr ->
-            evalComparisonPos posValueExpr fCompare value
+            evalComparisonPos posValueExpr fCompare value (currentLevelPos scopeData)
 
 evalComparisonGroup
     :: GroupValueExpr
     -> (Value -> Value -> Bool)
     -> Value
+    -> ScopeData
     -> EvalM (ComparisonResult Position)
-evalComparisonGroup groupValueExpr fCompare value = do
+evalComparisonGroup groupValueExpr fCompare value scopeData = do
     case groupValueExpr of
         CountDistinct fieldName -> do
-            (positions, count) <- evalCountDistinct fieldName
-            return $ groupCompare count positions
+            count <- evalCountDistinct currentLevelPositions fieldName
+            return $ groupCompare count currentLevelPositions
         SumOver fieldName groupNameOpt -> do
-            (positions, sumValue) <- evalSumOver fieldName groupNameOpt
+            (positions, sumValue) <- evalSumOver scopeData fieldName groupNameOpt
             return $ groupCompare sumValue positions
   where
+    currentLevelPositions = currentLevelPos scopeData
     groupCompare calculatedValue positions = do
         if fCompare calculatedValue value
             then ComparisonResult (Just positions) Nothing
@@ -113,11 +118,11 @@ evalComparisonPos
     :: PosValueExpr
     -> (t -> Value -> Bool)
     -> t
+    -> NonEmpty Position
     -> EvalM (ComparisonResult Position)
-evalComparisonPos posValueExpr fCompare value = do
+evalComparisonPos posValueExpr fCompare value currentLevelPositions = do
     case posValueExpr of
         Get fieldName -> do
-            currentLevelPositions <- currentLevelPosM
             valueFields <- lookupFields fieldName currentLevelPositions
             return $ addManyResults (fCompare value) (NE.map (fmap Field) valueFields)
   where
@@ -137,15 +142,16 @@ data ComparisonResult a = ComparisonResult
     }
 
 evalSumOver
-    :: FieldName
+    :: ScopeData
+    -> FieldName
     -> Maybe GroupName
     -> EvalM (NonEmpty Position, Value)
-evalSumOver fieldName groupNameOpt = do
-    (positions, sumValue) <- evalSum fieldName =<< currentLevelPosM
+evalSumOver scopeData fieldName groupNameOpt = do
+    (positions, sumValue) <- evalSum fieldName (currentLevelPos scopeData)
     addPositions positions =<< case groupNameOpt of
         Nothing -> return (Sum sumValue)    -- Absolute
         Just groupName -> do                -- Relative
-            groupPositions <- lookupLevel groupName
+            groupPositions <- lookupLevel scopeData groupName
             groupSumValue <- snd <$> evalSum fieldName groupPositions
             return $ Percent (sumValue * 100 / groupSumValue)
   where
@@ -167,11 +173,12 @@ evalSum fieldName positions = do
     toDouble (Json.Number s) = return (realToFrac s)
     toDouble v = fatalError $ "sum: expected Number for '" <> fieldName <> "' found: " <> toS (show v)
 
+-- |
 evalCountDistinct
-    :: FieldName
-    -> EvalM (NonEmpty Position, Value)
-evalCountDistinct fieldName = do
-    currentLevelPositions <- currentLevelPosM
-    newGrouping <- mkCurrentLevelGroupingM fieldName (lookup fieldName)
+    :: NonEmpty Position    -- ^ Current level positions
+    -> FieldName
+    -> EvalM Value
+evalCountDistinct currentLevelPositions fieldName = do
+    newGrouping <- mkCurrentLevelGroupingM fieldName currentLevelPositions
     let result = fromIntegral $ length $ M.keys newGrouping
-    return (currentLevelPositions, Count result)
+    return $ Count result
