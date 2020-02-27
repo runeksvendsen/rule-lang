@@ -43,7 +43,7 @@ evalRec varEnv scopeData expr = do
     -- Used for logging a result that contains the current scope
     setCurrentScope (groupScope scopeData)
     case expr of
-        Both a b -> do
+        And a b -> do
             -- NB: order of evaluation does not matter
             resA <- evalRec varEnv scopeData a
             resB <- evalRec varEnv scopeData b

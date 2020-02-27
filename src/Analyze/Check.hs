@@ -11,7 +11,7 @@ checkData :: RuleExpr -> [Text]
 checkData expr =
     let aux errors groupEnv varEnv expr =
             case expr of
-                Both a b ->
+                And a b ->
                     let eval = aux [] groupEnv varEnv
                     in eval a <> eval b <> errors
                 Let name rhs scope ->

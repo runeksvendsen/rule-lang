@@ -73,7 +73,7 @@ data RuleExpr
     --      for each X:
     --          value of Y <= 10%
     --          number of distinct Z >= 6
-    = Both RuleExpr RuleExpr
+    = And RuleExpr RuleExpr
 
     -- let varName = exprA in varNameScopeExpr
     | Let Text RuleExpr RuleExpr   -- name rhs scope

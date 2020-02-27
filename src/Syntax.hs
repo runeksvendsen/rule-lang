@@ -13,7 +13,7 @@ f |: x =  f x
 infixr 8 |:
 
 (+++) :: RuleExpr -> RuleExpr -> RuleExpr
-a +++ b = Both a b
+a +++ b = And a b
 infixr 7 +++
 
 forEach = GroupBy
