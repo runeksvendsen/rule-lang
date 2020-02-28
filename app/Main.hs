@@ -6,7 +6,7 @@ import LangPrelude
 import qualified Output
 import qualified Analyze.Check
 import qualified Eval.Eval                        as Eval
-import qualified Rules.ThirtyfiveSixtySix         as Rule
+import qualified Rules.CountryBondValue           as Rule
 
 import           System.Environment               (getArgs)
 import           System.IO                        (stderr, hPutStrLn)
