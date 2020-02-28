@@ -2,6 +2,7 @@ name:                rule-lang
 version:             0.1.0.0
 github:              "runeksvendsen/rule-lang"
 license:             MIT
+license-file:        LICENSE
 author:              "Rune K. Svendsen"
 maintainer:          "runesvend@gmail.com"
 
