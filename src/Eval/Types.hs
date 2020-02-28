@@ -1,6 +1,7 @@
 
 module Eval.Types
-( Level(..)
+( Env
+, Level(..)
 , LevelPos(..)
 , Position
 , ScopeData
@@ -17,6 +18,8 @@ import Absyn
 import qualified Data.Aeson                             as Json
 import qualified Data.List.NonEmpty                     as NE
 
+
+type Env a = Map FieldName a
 
 -- | Information about a group of elements in a "group by".
 --   Associated with one or more items whose field name ('lGroupName')

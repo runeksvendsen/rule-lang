@@ -7,7 +7,6 @@ where
 
 import LangPrelude
 import Eval.Types
-import Eval.Env
 import Eval.Result
 import Eval.Monad
 import Absyn
