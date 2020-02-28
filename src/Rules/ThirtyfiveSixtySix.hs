@@ -18,11 +18,11 @@ import Rules.Syntax
 ruleExpr :: RuleExpr
 ruleExpr =
     forEach "IssuerName" $:
-        where' (sumOf value (relativeTo "Portfolio")) Gt (Percent 35) $:
-            rule (numberOf issue) GtE (Count 6)
+        where' (sumOf value (relativeTo "Portfolio") Gt (Percent 35)) $:
+            rule (numberOf issue GtE (Count 6))
             +++
             forEach issue |:
-                    rule (sumOf value (relativeTo "Portfolio")) LtE (Percent 30)
+                    rule (sumOf value (relativeTo "Portfolio") LtE (Percent 30))
 
 value = "DirtyValueTotalRC"
 issue = "SecurityID"

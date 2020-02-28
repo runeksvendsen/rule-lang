@@ -18,13 +18,18 @@ a +++ b = And a b
 infixr 7 +++
 
 forEach = GroupBy
-where' valExpr fComp value = Filter (Comparison valExpr fComp value)
-rule valExpr fComp value = Rule (Comparison valExpr fComp value)
+where' = Filter
+group = GroupComparison
+pos = PosComparison
+--(Comparison valExpr fComp value)
+rule = Rule
 sumOver = SumOver
 sumOverRelative fieldName relative = sumOver fieldName (Just relative)
 of' fieldName = sumOver fieldName (Just "Portfolio")
-numberOfRelativeTo = GroupValueExpr . CountDistinct
-numberOf = GroupValueExpr . CountDistinct
-forall = PosValueExpr . Get
-sumOf field rel = GroupValueExpr (SumOver field rel)
-relativeTo group = Just group
+numberOfRelativeTo = GroupComparison . CountDistinct
+numberOf field comp val = GroupComparison (CountDistinct field) comp val
+forall = PosComparison
+sumOf field rel comp val = GroupComparison (SumOver field rel) comp val
+relativeTo = Just
+
+-- sumOf' field rel = GroupComparison (SumOver field rel)

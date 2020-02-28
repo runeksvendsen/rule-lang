@@ -84,21 +84,18 @@ evalComparison
     :: Comparison
     -> ScopeData
     -> EvalM (ComparisonResult Position)
-evalComparison (Comparison valueExpr bCompare value) scopeData =
-    let fCompare = comparator bCompare in
-    case valueExpr of
-        GroupValueExpr groupValueExpr ->
-            evalComparisonGroup groupValueExpr fCompare value scopeData
-        PosValueExpr posValueExpr ->
-            evalComparisonPos posValueExpr fCompare value (currentLevelPos scopeData)
+evalComparison (GroupComparison groupValueExpr bCompare groupValue) scopeData =
+    evalComparisonGroup groupValueExpr (comparator bCompare) groupValue scopeData
+evalComparison (PosComparison fieldName bCompare fieldValue) scopeData =
+    evalComparisonPos fieldName (comparator bCompare) fieldValue (currentLevelPos scopeData)
 
 evalComparisonGroup
     :: GroupValueExpr
-    -> (Value -> Value -> Bool)
-    -> Value
+    -> (GroupValue -> GroupValue -> Bool)
+    -> GroupValue
     -> ScopeData
     -> EvalM (ComparisonResult Position)
-evalComparisonGroup groupValueExpr fCompare value scopeData = do
+evalComparisonGroup groupValueExpr fCompare expectedValue scopeData = do
     case groupValueExpr of
         CountDistinct fieldName -> do
             count <- evalCountDistinct currentLevelPositions fieldName
@@ -109,27 +106,25 @@ evalComparisonGroup groupValueExpr fCompare value scopeData = do
   where
     currentLevelPositions = currentLevelPos scopeData
     groupCompare calculatedValue positions = do
-        if fCompare calculatedValue value
+        if fCompare expectedValue calculatedValue
             then ComparisonResult (Just positions) Nothing
             else ComparisonResult Nothing (Just positions)
 
 evalComparisonPos
-    :: PosValueExpr
-    -> (t -> Value -> Bool)
-    -> t
+    :: FieldName
+    -> (FieldValue -> FieldValue -> Bool)
+    -> FieldValue
     -> NonEmpty Position
     -> EvalM (ComparisonResult Position)
-evalComparisonPos posValueExpr fCompare value currentLevelPositions = do
-    case posValueExpr of
-        Get fieldName -> do
-            valueFields <- lookupFields fieldName currentLevelPositions
-            return $ addManyResults (fCompare value) (NE.map (fmap Field) valueFields)
+evalComparisonPos fieldName fCompare expectedValue currentLevelPositions = do
+    valueFields <- lookupFields fieldName currentLevelPositions
+    return $ addManyResults (fCompare expectedValue) valueFields
   where
-    addManyResults :: (Value -> Bool) -> NonEmpty (Position, Value) -> ComparisonResult Position
+    addManyResults :: (FieldValue -> Bool) -> NonEmpty (Position, FieldValue) -> ComparisonResult Position
     addManyResults f =
         foldr testAdd (ComparisonResult Nothing Nothing)
       where
-        testAdd :: (Position, Value) -> ComparisonResult Position -> ComparisonResult Position
+        testAdd :: (Position, FieldValue) -> ComparisonResult Position -> ComparisonResult Position
         testAdd (item, testVal) cr =
             if f testVal
                 then cr { compareTrue  = consMaybeNE item (compareTrue cr) }
@@ -144,7 +139,7 @@ evalSumOver
     :: ScopeData
     -> FieldName
     -> Maybe GroupName
-    -> EvalM (NonEmpty Position, Value)
+    -> EvalM (NonEmpty Position, GroupValue)
 evalSumOver scopeData fieldName groupNameOpt = do
     (positions, sumValue) <- evalSum fieldName (currentLevelPos scopeData)
     addPositions positions =<< case groupNameOpt of
@@ -176,7 +171,7 @@ evalSum fieldName positions = do
 evalCountDistinct
     :: NonEmpty Position    -- ^ Current level positions
     -> FieldName
-    -> EvalM Value
+    -> EvalM GroupValue
 evalCountDistinct currentLevelPositions fieldName = do
     newGrouping <- mkCurrentLevelGroupingM fieldName currentLevelPositions
     let result = fromIntegral $ length $ M.keys newGrouping

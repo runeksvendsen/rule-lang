@@ -30,12 +30,12 @@ checkComparison
     :: [GroupName]
     -> Comparison
     -> [GroupName]
-checkComparison groupEnv (Comparison valueExpr _ _) =
+checkComparison groupEnv comparison =
     let groupNotFound name = "Grouping '" <> name <> "' doesn't exist"
         groupExists name = name `elem` groupEnv
         groupError name = if groupExists name then Nothing else Just (groupNotFound name)
-    in case valueExpr of
-        PosValueExpr (Get _) -> []
-        GroupValueExpr (CountDistinct _) -> []
-        GroupValueExpr (SumOver _ groupNameOpt) ->
+    in case comparison of
+        (GroupComparison (SumOver _ groupNameOpt) _ _) ->
             catMaybes [groupNameOpt >>= groupError]
+        _ -> []
+

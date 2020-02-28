@@ -1,11 +1,10 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Absyn
 ( -- * Abstract syntax
   RuleExpr(..)
 , Comparison(..)
-, ValueExpr(..)
 , GroupValueExpr(..)
-, PosValueExpr(..)
-, Value(..)
+, GroupValue(..)
   -- * Value types
 , FieldName
 , FieldValue
@@ -18,26 +17,17 @@ where
 import LangPrelude
 import Comparison                           as Comparison
 import qualified Data.Aeson                 as Json
-import           Data.String                (IsString(..))
 
 
 type FieldName = Text
 type FieldValue = Json.Value
 type GroupName = Text
 
-data Value =
+data GroupValue =
       Count Word
     | Sum Double
-    | Field FieldValue
     | Percent Double
         deriving Show
-
--- A value for a position
-data PosValueExpr =
-      -- Violator: (FieldName, Position)
-      -- "InstrumentType"
-      Get FieldName
-        deriving (Eq, Show)
 
 -- A value for a group
 data GroupValueExpr =
@@ -50,11 +40,6 @@ data GroupValueExpr =
     | SumOver FieldName (Maybe GroupName)
         deriving (Eq, Show)
 
-data ValueExpr =
-      GroupValueExpr GroupValueExpr
-    | PosValueExpr PosValueExpr
-        deriving (Eq, Show)
-
 -- Examples:
 --     *Input*                          *ValueExpr*                       *Compare*       *Value*
 --  |------------|----------------------------------------------------|---------------|-------------|
@@ -65,7 +50,9 @@ data ValueExpr =
 --     grouping     sum     Value           (relative to Portfolio)     >               5%
 --     grouping     sum     Value           (relative to Country)       <               20%
 data Comparison =
-      Comparison ValueExpr BoolCompare Value
+      GroupComparison GroupValueExpr BoolCompare GroupValue
+    | PosComparison FieldName BoolCompare FieldValue
+        deriving Show
 
 data RuleExpr
     -- Two RuleExpr in the same context.
@@ -178,35 +165,29 @@ data RuleExpr
 
 {- #### TYPE CLASS INSTANCES #### -}
 
-instance IsString Value where
-    fromString str = Field $ Json.String (toS str)
-
 -- TODO: static check of invalid comparisons
-instance Eq Value where
+instance Eq GroupValue where
     (Count   a) == (Count   b) = a == b
     (Sum     a) == (Sum     b) = a == b
     (Percent a) == (Percent b) = a == b
-    (Field (Json.String strA)) == (Field (Json.String strB)) =
-        strA == strB
-    -- Below throws an error
-    (Field a) == (Field b) =
-        error $ "Field comparison not implemented: " ++ show (a,b)
     (==) a b = error $ "Invalid comparison: " ++ show (a, b)
 
+-- instance Eq GroupValue where
+--     (Field (Json.String strA)) == (Field (Json.String strB)) =
+--         strA == strB
+--     -- Below throws an error
+--     (Field a) == (Field b) =
+--         error $ "Field comparison not implemented: " ++ show (a,b)
+--     (==) a b = error $ "Invalid comparison: " ++ show (a, b)
+
 -- TODO: static check of invalid comparisons
-instance Ord Value where
+instance Ord GroupValue where
     (Count   a) `compare` (Count   b) = a `compare` b
     (Sum     a) `compare` (Sum     b) = a `compare` b
     (Percent a) `compare` (Percent b) = a `compare` b
-    -- Below throws an error
-    (Field (Json.String strA)) `compare` (Field (Json.String strB)) =
-        strA `compare` strB
-    -- Below throws an error
-    (Field a) `compare` (Field b) =
-        error $ "Field comparison not implemented: " ++ show (a,b)
     compare a b = error $ "Invalid comparison: " ++ show (a, b)
 
--- TMP:
-instance Show Comparison where
-    show (Comparison valueExpr _ value) =
-        "(Comparison (" ++ show valueExpr ++ ") (" ++ show value ++ "))"
+instance Ord Json.Value where
+    (Json.Number a) `compare` (Json.Number b) = a `compare` b
+    -- Below throws an error
+    compare a b = error $ "Field comparison not implemented: " ++ show (a,b)
