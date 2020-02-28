@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
-module Syntax where
+module Rules.Syntax where
 
 import Prelude
 import Absyn

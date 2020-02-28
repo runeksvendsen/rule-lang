@@ -1,8 +1,11 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
-module Test where
+module Rules.ThirtyfiveSixtySix
+( ruleExpr
+)
+where
 
 import Absyn
-import Syntax
+import Rules.Syntax
 
 -- 35-30-6
 {-
@@ -12,8 +15,8 @@ import Syntax
             for each Issue (group by SecurityID):
                 Value of Issue (relative to Portfolio value) <= 30%
 -}
-thirtyfiveThirtySix :: RuleExpr
-thirtyfiveThirtySix =
+ruleExpr :: RuleExpr
+ruleExpr =
     forEach "IssuerName" $:
         where' (sumOf value (relativeTo "Portfolio")) Gt (Percent 35) $:
             rule (numberOf issue) GtE (Count 6)
@@ -23,10 +26,3 @@ thirtyfiveThirtySix =
 
 value = "DirtyValueTotalRC"
 issue = "SecurityID"
-
-bondValueRelativeByCountry :: RuleExpr
-bondValueRelativeByCountry =
-    where' (forall "InstrumentType") Eq "Bond" $:
-        forEach "Country" $:
-            forEach "IssuerName" $:
-                rule (sumOf value (relativeTo "Country")) LtE (Percent 5)

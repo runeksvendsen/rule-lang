@@ -6,7 +6,7 @@ import LangPrelude
 import qualified Output
 import qualified Analyze.Check
 import qualified Eval.Eval                        as Eval
-import qualified Test
+import qualified Rules.ThirtyfiveSixtySix         as Rule
 
 import           System.Environment               (getArgs)
 import           System.IO                        (stderr, hPutStrLn)
@@ -21,7 +21,7 @@ main = do
     inputFile <- argOrFail <$> getArgs
     positions <- value . handleDecodeResult <$> Json.eitherDecodeFileStrict' inputFile
     let (success, results) = handleEvalResult $
-            Eval.eval (toNonEmpty positions) Test.thirtyfiveThirtySix
+            Eval.eval (toNonEmpty positions) Rule.ruleExpr
     hPutStrLn stderr $ "Rule violated: " ++ show (not success)
     printJson results
   where
@@ -36,7 +36,7 @@ main = do
 
 mainCheck :: IO ()
 mainCheck = do
-    let errors = Analyze.Check.checkData Test.thirtyfiveThirtySix
+    let errors = Analyze.Check.checkData Rule.ruleExpr
     let errorCount = length errors
     putStrLn $ printf ("%d error(s)%s") errorCount (if errorCount > 0 then ":" else "" :: String)
     forM_ errors (\s -> putStrLn . T.unpack $ "\t" <> s)
