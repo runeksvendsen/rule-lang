@@ -82,7 +82,7 @@ data RuleExpr
 
 
 
-{- ####  EXAMPLES #### -}
+-- ####  EXAMPLES #### --
 
 -- complex
 {-
@@ -163,7 +163,7 @@ data RuleExpr
 -}
 
 
-{- #### TYPE CLASS INSTANCES #### -}
+-- #### TYPE CLASS INSTANCES #### --
 
 -- TODO: static check of invalid comparisons
 instance Eq GroupValue where
