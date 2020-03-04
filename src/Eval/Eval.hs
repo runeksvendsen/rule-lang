@@ -106,7 +106,7 @@ evalComparisonGroup groupValueExpr fCompare expectedValue scopeData = do
   where
     currentLevelPositions = currentLevelPos scopeData
     groupCompare calculatedValue positions = do
-        if fCompare expectedValue calculatedValue
+        if fCompare calculatedValue expectedValue
             then ComparisonResult (Just positions) Nothing
             else ComparisonResult Nothing (Just positions)
 
@@ -118,7 +118,7 @@ evalComparisonPos
     -> EvalM (ComparisonResult Position)
 evalComparisonPos fieldName fCompare expectedValue currentLevelPositions = do
     valueFields <- lookupFields fieldName currentLevelPositions
-    return $ addManyResults (fCompare expectedValue) valueFields
+    return $ addManyResults (`fCompare` expectedValue) valueFields
   where
     addManyResults :: (FieldValue -> Bool) -> NonEmpty (Position, FieldValue) -> ComparisonResult Position
     addManyResults f =
