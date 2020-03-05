@@ -1,6 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Eval.Eval
 ( eval
+, runEvalData
 , Position
 )
 where
@@ -28,57 +29,85 @@ import qualified Data.List.NonEmpty         as NE
 --  True = "rule not violated", False = "rule violated".
 eval :: NonEmpty Position -> RuleExpr -> Either Text (Bool, [Result])
 eval portfolioPositions expr =
-    runEvalM (nonEmpty initialScope) $ evalRec emptyMap initialScopeData expr
+    runEvalM (nonEmpty $ initialScope) $ evalRec initialVarEnv expr
   where
     initialScopeData = nonEmpty $ LevelPos initialScope portfolioPositions
     initialScope = Level "Portfolio" (Json.String "")
+    initialVarEnv = M.fromList [("portfolio", [initialScopeData])]
 
+-- | TODO: document environment
 evalRec
-    :: Env RuleExpr     -- Variables
-    -> ScopeData
+    :: Map Text [ScopeData] -- ^ Mapping of: variable names --> grouped data (environment)
     -> RuleExpr
     -> EvalM Bool
-evalRec varEnv scopeData expr = do
-    -- Used for logging a result that contains the current scope
-    setCurrentScope (groupScope scopeData)
-    case expr of
-        And a b -> do
-            -- NB: order of evaluation does not matter
-            resA <- evalRec varEnv scopeData a
-            resB <- evalRec varEnv scopeData b
-            return (resA && resB)
+evalRec varEnv expr = undefined
+    -- -- Used for logging a result that contains the current scope
+    -- setCurrentScope (groupScope scopeData)
+    -- case expr of
+    --     And a b -> do
+    --         -- NB: order of evaluation does not matter
+    --         resA <- evalRec varEnv scopeData a
+    --         resB <- evalRec varEnv scopeData b
+    --         return (resA && resB)
 
-        Let name rhs scope ->
-            evalRec (insert varEnv name rhs) scopeData scope
 
-        Var var ->
-            let varNotFound = "Variable '" <> var <> "' doesn't exist"
-            in maybe (fatalError varNotFound) (evalRec varEnv scopeData) (lookup var varEnv)
+    --     Let name rhs scope -> undefined
+    --         -- evalRec (insert varEnv name rhs) scopeData scope
 
-        GroupBy field scope -> do
-            newGrouping <- mkCurrentLevelGroupingM field (currentLevelPos scopeData)
-            boolList <- forM (M.toList newGrouping) $ \(fieldValue, positions) -> do
-                let newLevel = LevelPos (Level field fieldValue) positions
-                evalRec varEnv (newLevel `cons` scopeData) scope
-            return $ all (== True) boolList
+    --     Foreach var scope -> do
+    --         let varNotFound = "Variable '" <> var <> "' doesn't exist"
+    --         dataExprList <- maybe (fatalError varNotFound) return (lookup var varEnv)
+    --         scopeDataList <- evalData scopeData dataExprList
+    --         boolList <- forM scopeDataList (\scopeData' -> evalRec varEnv scopeData' scope)
+    --         return $ all (== True) boolList
 
-        Filter comparison exprScope -> do
-            compRes <- evalComparison comparison scopeData
-            whenJust (compareFalse compRes) notConsidered
-            case compareTrue compRes of
-                Nothing -> return True
-                Just positions -> do
-                    let newCurrentLevel = (currentLevel scopeData) { lpPositions = positions }
-                    evalRec varEnv (replaceHead scopeData newCurrentLevel) exprScope
+    --     Rule comparison -> do
+    --         compRes <- evalComparison comparison scopeData
+    --         whenJust (compareTrue compRes) rulePassed
+    --         case compareFalse compRes of
+    --             Nothing -> return True
+    --             Just positions -> do
+    --                 ruleViolated positions
+    --                 return False
 
-        Rule comparison -> do
-            compRes <- evalComparison comparison scopeData
-            whenJust (compareTrue compRes) rulePassed
-            case compareFalse compRes of
-                Nothing -> return True
-                Just positions -> do
-                    ruleViolated positions
-                    return False
+runEvalData :: NonEmpty Position -> DataExpr -> Either Text ([ScopeData], [Result])
+runEvalData portfolioPositions expr =
+    runEvalM (nonEmpty $ initialScope) $ evalData initialVarEnv expr
+  where
+    initialScopeData = nonEmpty $ LevelPos initialScope portfolioPositions
+    initialScope = Level "Portfolio" (Json.String "")
+    initialVarEnv = M.fromList [("portfolio", [initialScopeData])]
+
+evalData
+    :: Map Text [ScopeData] -- ^ Variables
+    -> DataExpr
+    -> EvalM [ScopeData]
+evalData varEnv dataExpr =
+    case dataExpr of
+        GroupBy field input -> do
+            scopeDataList <- evalData varEnv input
+            fmap concat . forM scopeDataList $ \scopeData -> do
+                newGrouping <- mkCurrentLevelGroupingM field (currentLevelPos scopeData)
+                forM (M.toList newGrouping) $ \(fieldValue, positions) -> do
+                    let newLevel = LevelPos (Level field fieldValue) positions
+                    return (newLevel `cons` scopeData)
+
+        Filter comparison input -> do
+            scopeDataList <- evalData varEnv input
+            fmap concat . forM scopeDataList $ \scopeData -> do
+                compRes <- evalComparison comparison scopeData
+                whenJust (compareFalse compRes) notConsidered
+                case compareTrue compRes of
+                    Nothing -> return []
+                    Just positions -> do
+                        let newCurrentLevel = (currentLevel scopeData) { lpPositions = positions }
+                        return [replaceHead scopeData newCurrentLevel]
+
+        Var name -> do
+            let varNotFound = "Variable '" <> name <> "' not defined"
+            scopeDataList <- maybe (fatalError varNotFound) return (lookup name varEnv)
+            return scopeDataList
+
 
 evalComparison
     :: Comparison
@@ -100,13 +129,13 @@ evalComparisonGroup groupValueExpr fCompare expectedValue scopeData = do
         CountDistinct fieldName -> do
             count <- evalCountDistinct currentLevelPositions fieldName
             return $ groupCompare count currentLevelPositions
-        SumOver fieldName groupNameOpt -> do
-            (positions, sumValue) <- evalSumOver scopeData fieldName groupNameOpt
+        SumOver fieldName relativeToOpt -> do
+            (positions, sumValue) <- evalSumOver scopeData fieldName undefined
             return $ groupCompare sumValue positions
   where
     currentLevelPositions = currentLevelPos scopeData
     groupCompare calculatedValue positions = do
-        if fCompare expectedValue calculatedValue
+        if fCompare calculatedValue expectedValue
             then ComparisonResult (Just positions) Nothing
             else ComparisonResult Nothing (Just positions)
 
@@ -118,7 +147,7 @@ evalComparisonPos
     -> EvalM (ComparisonResult Position)
 evalComparisonPos fieldName fCompare expectedValue currentLevelPositions = do
     valueFields <- lookupFields fieldName currentLevelPositions
-    return $ addManyResults (fCompare expectedValue) valueFields
+    return $ addManyResults (`fCompare` expectedValue) valueFields
   where
     addManyResults :: (FieldValue -> Bool) -> NonEmpty (Position, FieldValue) -> ComparisonResult Position
     addManyResults f =
@@ -146,6 +175,7 @@ evalSumOver scopeData fieldName groupNameOpt = do
         Nothing -> return (Sum sumValue)    -- Absolute
         Just groupName -> do                -- Relative
             groupPositions <- lookupLevel scopeData groupName
+            -- TODO:
             groupSumValue <- snd <$> evalSum fieldName groupPositions
             return $ Percent (sumValue * 100 / groupSumValue)
   where

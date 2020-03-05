@@ -27,12 +27,12 @@ type Env a = Map FieldName a
 data Level = Level
     { lGroupName    :: GroupName    -- e.g. "Country" or "SecurityID"
     , lGroupValue   :: Json.Value   -- e.g. 'String "DK"' or 'Number 12323535'
-    }  deriving (Eq, Show)
+    } deriving (Eq, Show)
 
 data LevelPos = LevelPos
     { lpLevel       :: Level            -- e.g. "Country"
     , lpPositions   :: NonEmpty Position
-    }
+    } deriving (Eq, Show)
 
 type Position = Map Text Json.Value
 type ScopeData = NonEmpty LevelPos

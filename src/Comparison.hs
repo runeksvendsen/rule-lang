@@ -30,3 +30,5 @@ instance Show BoolCompare where
     show Gt  = ">"
     show LtE = "<="
     show GtE = ">="
+
+deriving instance Eq BoolCompare

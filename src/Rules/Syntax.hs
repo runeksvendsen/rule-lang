@@ -1,8 +1,9 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 module Rules.Syntax where
 
-import Prelude
+import LangPrelude
 import Absyn
+import qualified Data.List.NonEmpty               as NE
 
 
 ($:) :: (a -> b) -> a -> b
@@ -17,19 +18,21 @@ infixr 8 |:
 a +++ b = And a b
 infixr 7 +++
 
-forEach = GroupBy
-where' = Filter
+let' name dataExprList = Let name (NE.fromList dataExprList)
+forEach = Foreach
+where' groupValueExpr boolCompare inputValue =
+    GroupComparison groupValueExpr boolCompare inputValue
+
+
 group = GroupComparison
 pos = PosComparison
 --(Comparison valExpr fComp value)
 rule = Rule
 sumOver = SumOver
 sumOverRelative fieldName relative = sumOver fieldName (Just relative)
-of' fieldName = sumOver fieldName (Just "Portfolio")
+-- of' fieldName = sumOver fieldName (Just "Portfolio")
 numberOfRelativeTo = GroupComparison . CountDistinct
 numberOf field comp val = GroupComparison (CountDistinct field) comp val
 forall = PosComparison
 sumOf field rel comp val = GroupComparison (SumOver field rel) comp val
-relativeTo = Just
-
--- sumOf' field rel = GroupComparison (SumOver field rel)
+relativeTo field relative = SumOver field (Just relative)

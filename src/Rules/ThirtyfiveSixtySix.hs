@@ -4,25 +4,35 @@ module Rules.ThirtyfiveSixtySix
 )
 where
 
+import LangPrelude
 import Absyn
 import Rules.Syntax
 
 -- 35-30-6
 {-
+    number of distinct SecurityID (at Portfolio level) >= 6
     for each Issuer:
         where Value of Issuer (relative to portfolio) > 35%:
-            number of distinct SecurityID (at Portfolio level) >= 6
             for each Issue (group by SecurityID):
                 Value of Issue (relative to Portfolio value) <= 30%
 -}
 ruleExpr :: RuleExpr
-ruleExpr =
-    forEach "IssuerName" $:
-        where' (sumOf value (relativeTo "Portfolio") Gt (Percent 35)) $:
-            rule (numberOf issue GtE (Count 6))
-            +++
-            forEach issue |:
-                    rule (sumOf value (relativeTo "Portfolio") LtE (Percent 30))
+ruleExpr = undefined
+    -- let issuerNameValue = [GroupBy "IssuerName", where' (sumOf value (relativeTo "Portfolio") Gt (Percent 35))] in
+    -- let' "issuerGt35Pct" issuerNameValue $:
+    -- let' "issues" (issuerNameValue ++ [GroupBy issue]) $:
+    -- forEach "issuerGt35Pct" $:
+    --     rule (numberOf issue GtE (Count 6))
+    --     +++
+    --     forEach "issues" |:
+    --         rule (sumOf value (relativeTo "Portfolio") LtE (Percent 30))
+
+    -- forEach "IssuerName" $:
+    --     where' (sumOf value (relativeTo "Portfolio") Gt (Percent 35)) $:
+    --         rule (numberOf issue GtE (Count 6))
+    --         +++
+    --         forEach issue |:
+    --                 rule (sumOf value (relativeTo "Portfolio") LtE (Percent 30))
 
 value = "DirtyValueTotalRC"
 issue = "SecurityID"

@@ -2,6 +2,7 @@
 module Absyn
 ( -- * Abstract syntax
   RuleExpr(..)
+, DataExpr(..)
 , Comparison(..)
 , GroupValueExpr(..)
 , GroupValue(..)
@@ -37,7 +38,7 @@ data GroupValueExpr =
 
       -- Violator: (FieldName, GroupName, Maybe GroupName)
       -- "{Exposure} {(relative to Country)}"
-    | SumOver FieldName (Maybe GroupName)
+    | SumOver FieldName (Maybe DataExpr)
         deriving (Eq, Show)
 
 -- Examples:
@@ -52,7 +53,7 @@ data GroupValueExpr =
 data Comparison =
       GroupComparison GroupValueExpr BoolCompare GroupValue
     | PosComparison FieldName BoolCompare FieldValue
-        deriving Show
+        deriving (Eq, Show)
 
 data RuleExpr
     -- Two RuleExpr in the same context.
@@ -63,26 +64,76 @@ data RuleExpr
     = And RuleExpr RuleExpr
 
     -- let varName = exprA in varNameScopeExpr
-    | Let Text RuleExpr RuleExpr   -- name rhs scope
+    | Let Text (NonEmpty DataExpr) RuleExpr   -- name rhs scope
 
-    -- varName
-    | Var Text
+    -- for each "varName": <scope>
+    | Foreach Text RuleExpr
 
-    -- for each SomeField: expr
-    | GroupBy FieldName RuleExpr           -- field scope
-
-    -- where InstrumentType == Bond
-    -- where Value of Issuer relative to Country <= 15%
-    | Filter Comparison RuleExpr
-
-    -- <some conditions that must be true>
+    -- a condition that must be true
     | Rule Comparison
         deriving Show
 
+data DataExpr
+    -- group portfolio by "Country"
+    = GroupBy FieldName DataExpr
 
+    --
+    | Var Text
+
+    -- where InstrumentType == Bond
+    -- where Value of Issuer relative to Country <= 15%
+    | Filter Comparison DataExpr
+        deriving (Eq, Show)
 
 
 -- ####  EXAMPLES #### --
+
+
+-- David 1
+{-
+    NoCashPositions
+    ===============
+    Instrument type <> Cash
+    =========================
+
+
+    IssuersExcludingCash
+    =====================
+    Grouping of NoCashPositions
+    By Issuer
+    ============================
+
+
+    IssuersAbove5%
+    ================
+    Filtering of IssuersExcludingCash
+    Where
+        Dirty value
+    Relative to
+        Dirty value
+        of NoCashPositions
+    > 5%
+    ====================================
+
+
+    Rule:
+    =====
+
+    Limit [<=10%]
+    Dirty Value
+        of IssuersExcludingCash
+    Relative To
+    Dirty Value
+        of NoCashPositions
+
+
+    Limit [<=40%]
+    Dirty Value
+        of IssuersAbove5%
+    Relative To
+    Dirty Value
+        of NoCashPositions
+-}
 
 -- complex
 {-
