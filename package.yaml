@@ -14,12 +14,13 @@ ghc-options:
 
 default-extensions:
   - OverloadedStrings
+  - StandaloneDeriving
+  - DeriveGeneric
+  - NoImplicitPrelude
+  - FlexibleContexts
 
 library:
   source-dirs: src
-  default-extensions:
-    - NoImplicitPrelude
-    - FlexibleContexts
   dependencies:
     - text
     - unordered-containers
@@ -28,13 +29,13 @@ library:
     - transformers
     - errors
     - protolude
+    - containers
+    - megaparsec
 
 executables:
   rule-lang-exe:
     main:                Main.hs
     source-dirs:         app
-    ghc-options:
-      - -Wall
     dependencies:
       - rule-lang
       - text

@@ -10,6 +10,8 @@ module LangPrelude
 , module Conv
 , module Generic
 , module Printf
+, module Hashable
+, module Void
 )
 where
 
@@ -22,10 +24,11 @@ import           Data.HashMap.Strict      as Map      (HashMap, lookup, member)
 import qualified Data.HashMap.Strict      as M
 import           Data.List.NonEmpty       as NonEmpty (NonEmpty, NonEmpty((:|)), (<|), cons)
 import           Protolude.Conv           as Conv
-import           Data.Hashable            (Hashable)
+import           Data.Hashable            as Hashable (Hashable)
 import           GHC.Generics             as Generic  (Generic)
 import qualified Data.Aeson               as Json
 import qualified Data.Text                as T
+import           Data.Void                as Void
 
 
 type Map = HashMap
@@ -57,7 +60,6 @@ replaceHead (_ :| xs) x' = x' :| xs
 whenJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
 whenJust (Just x) f = f x
 whenJust _        _ = return ()
-
 
 type Groupable a = (Eq a, Hashable a)
 

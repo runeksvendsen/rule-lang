@@ -1,102 +1,116 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Absyn
 ( -- * Abstract syntax
   RuleExpr(..)
-, Comparison(..)
+, DataExpr(..)
+, GroupComparison(..)
+, PosComparison(..)
+, FilterComparison(..)
 , GroupValueExpr(..)
 , GroupValue(..)
+, GroupFold(..)
   -- * Value types
 , FieldName
 , FieldValue
-, GroupName
   -- * Re-exports
 , module Comparison
+, module Tree
 )
 where
 
 import LangPrelude
+import Types
+import Tree                                 as Tree
 import Comparison                           as Comparison
 import qualified Data.Aeson                 as Json
 
 
-type FieldName = Text
-type FieldValue = Json.Value
-type GroupName = Text
-
 data GroupValue =
-      Count Word
-    | Sum Double
-    | Percent Double
-        deriving Show
+      Count Word        -- 'CountDistinct'
+    | Sum Double        -- 'SumOver'
+    | Percent Double    -- 'RelativeComparison'
+        deriving (Show)
 
--- A value for a group
 data GroupValueExpr =
-      -- Violator: (FieldName, GroupName)
-      -- "count SecurityID"
-      CountDistinct FieldName
-
-      -- Violator: (FieldName, GroupName, Maybe GroupName)
-      -- "{Exposure} {(relative to Country)}"
-    | SumOver FieldName (Maybe GroupName)
+      Literal GroupValue
+    | GroupFold GroupFold FieldName DataExpr
+    | RelativeComparison GroupValueExpr GroupValueExpr  -- 'Percent'
         deriving (Eq, Show)
 
--- Examples:
---     *Input*                          *ValueExpr*                       *Compare*       *Value*
---  |------------|----------------------------------------------------|---------------|-------------|
---     position     InstrumentType                                      ==              Bond
---
---     grouping     count   SecurityID                                  >=              6
---     grouping     sum     Value                                       <=              2M EUR
---     grouping     sum     Value           (relative to Portfolio)     >               5%
---     grouping     sum     Value           (relative to Country)       <               20%
-data Comparison =
-      GroupComparison GroupValueExpr BoolCompare GroupValue
-    | PosComparison FieldName BoolCompare FieldValue
-        deriving Show
+-- Input:  grouping
+-- Output: 'GroupValue'
+data GroupFold =
+      CountDistinct     -- 'Count'          (Equality)
+    | SumOver           -- 'Sum'            (+)
+    | Average           -- <any type>       (+ /)
+    | Max               -- <any type>       (Order)
+    | Min               -- <any type>       (Order)
+        deriving (Eq, Ord, Generic, Show)
+
+data GroupComparison =
+      GroupComparison GroupValueExpr BoolCompare GroupValueExpr
+        deriving (Eq, Show)
+
+-- Input:  (Position, fieldName, fieldValue)
+data PosComparison = PosComparison FieldName BoolCompare FieldValue
+    deriving (Eq, Show)
+
+data FilterComparison =
+      FilterGroup GroupComparison
+    | FilterPos PosComparison
+        deriving (Eq, Show)
+
+type VarName = Text
 
 data RuleExpr
-    -- Two RuleExpr in the same context.
-    -- Example (two "Rule"):
-    --      for each X:
-    --          value of Y <= 10%
-    --          number of distinct Z >= 6
-    = And RuleExpr RuleExpr
+    = Let VarName DataExpr RuleExpr     -- ^ name rhs scope
+    | Foreach DataExpr RuleExpr -- ^ for each country in dataExpr: <scope>
+    | Rule GroupComparison              -- ^ a condition that must be true
+    | And RuleExpr RuleExpr             -- ^ logical "and"
+        deriving (Eq, Show)
 
-    -- let varName = exprA in varNameScopeExpr
-    | Let Text RuleExpr RuleExpr   -- name rhs scope
-
-    -- varName
-    | Var Text
-
-    -- for each SomeField: expr
-    | GroupBy FieldName RuleExpr           -- field scope
-
-    -- where InstrumentType == Bond
-    -- where Value of Issuer relative to Country <= 15%
-    | Filter Comparison RuleExpr
-
-    -- <some conditions that must be true>
-    | Rule Comparison
-        deriving Show
+data DataExpr
+    = GroupBy FieldName DataExpr        -- ^ groupingField input
+    | Var VarName
+    | Filter FilterComparison DataExpr  -- ^ comparison input
+        deriving (Eq, Show)
 
 
 
 
--- ####  EXAMPLES #### --
+-- VI
+{-
+
+    let foreignCountrySecurities =
+            portfolio grouped by Country where Country <> Dk
+    let dirtyValueForeignSecurities =
+            sum over DirtyValue of foreignCountrySecurities
+    let relativeDirtyValueForeignSecurities =
+            dirtyValueForeignSecurities relative to sum over DirtyValue of portfolio
+    let numberOfForeignCountries = groupCount foreignCountrySecurities
+
+    if relativeDirtyValueForeignSecurities >= 80%:
+        numberOfForeignCountries >= 5
+    else if relativeDirtyValueForeignSecurities >= 60%
+        numberOfForeignCountries >= 4
+    else if relativeDirtyValueForeignSecurities >= 40%
+        numberOfForeignCountries >= 3
+    else if relativeDirtyValueForeignSecurities < 40%
+        numberOfForeignCountries >= 2
+
+-}
 
 -- complex
 {-
     let homeCountry = "DK"
-    let foreignCountries = group by Country: where Country <> homeCountry
-    for each (Country in) foreignCountries:
-        let countryValue = Value of Country relative to Portfolio
-        let numCountrySecurities = count distinct SecurityId at Country level
-        if countryValue > 60%:
+    let foreignCountries = group portfolio by Country: where Country <> homeCountry
+    for each country in foreignCountries:
+        let relativeCountryValue = sum over Value of country relative to Value of Portfolio
+        let numCountrySecurities = count (group country by SecurityId)
+        if relativeCountryValue > 60%:
             numCountrySecurities >= 20
-            (AND)
             for each SecurityID:
-                Value of SecurityID relative to Country <= 5%
-        else if countryVal > 40%:
+                sum over Value of SecurityID relative to sum over Value of Country <= 5%
+        else if relativeCountryValue > 40%:
             numCountrySecurities >= 10
 
 -}
@@ -104,24 +118,55 @@ data RuleExpr
 -- 5-10-40
 {-
 
-    let min5PercentHoldings =
+    define min5PercentHoldings =
             for each Issuer:
-                where Value > 5%
+                where Value > 5% relative to portfolio
     for each Issuer:
-        Value <= 5%
+        define relativeValue = sum Value of Issuer relative to portfolio
+        relativeValue <= 5%
         UNLESS
-        (Value <= 10% AND Value min5PercentHoldings <= 40%)
+        (relativeValue <= 10% AND Value min5PercentHoldings <= 40%)
 -}
+
+
+
+
+
+
+
+
+
+
+
+
 
 -- 35-30-6
 {-
-    let portfolioLevelIssueCount = count distinct SecurityID (at Portfolio level) >= 6
+    for each IssueName:
+        where Issuer = "Danske Bank":
+            Value >= 500M USD
+
+
+
+
+    define portfolioLevelIssueCount = count distinct SecurityID in Portfolio
     for each Issuer:
         where Value > 35%:
             portfolioLevelIssueCount >= 6
             for each SecurityID:
                 Value <= 30%
 -}
+
+
+
+
+
+
+
+
+
+
+
 
 -- Max 20% in bonds per issuer
 {-
@@ -191,3 +236,49 @@ instance Ord Json.Value where
     (Json.Number a) `compare` (Json.Number b) = a `compare` b
     -- Below throws an error
     compare a b = error $ "Field comparison not implemented: " ++ show (a,b)
+
+instance Hashable GroupFold
+
+
+
+-- complex
+{-
+
+    let homeCountry = "DK"
+    let foreignCountries = group by Country: where Country <> homeCountry
+
+    for each country in foreignCountries:
+        let countryValue = Value of country relative to Portfolio
+        let numCountrySecurities = count distinct SecurityId at Country level
+
+        if countryValue > 60%:
+            numCountrySecurities >= 20
+            for each SecurityID in country:
+                Value of SecurityID relative to Country <= 5%
+        else if countryVal > 40%:
+            numCountrySecurities >= 10
+
+
+
+
+
+
+
+    for each Country:
+        for each Issuer:
+            Value of Issuer relative to Country <= 10%
+
+-}
+
+
+
+
+
+
+
+
+
+
+
+
+

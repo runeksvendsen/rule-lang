@@ -26,12 +26,13 @@ toObjectSecId
     -> Map Text (Map Text (NonEmpty Json.Value))
 toObjectSecId =
     fmap (fmap (NE.map getSecurityIdOrFail)) . toObject
+
+getSecurityIdOrFail :: Position -> Json.Value
+getSecurityIdOrFail pos =
+    fromMaybe (notFoundError pos) $ M.lookup "SecurityID" pos
   where
     notFoundError pos =
         error $ "ERROR: 'SecurityID' key not found for: " ++ show pos
-    getSecurityIdOrFail :: Position -> Json.Value
-    getSecurityIdOrFail pos =
-        fromMaybe (notFoundError pos) $ M.lookup "SecurityID" pos
 
 toObject
     :: NonEmpty Result

@@ -1,13 +1,18 @@
 module Eval.Monad
 ( EvalM
+, EvalTree
 , runEvalM
+, initialVarEnv
+, initialScope
 , fatalError
 , throwLeft
 , setCurrentScope
+, logResult
 , addResults
 , rulePassed
 , ruleViolated
 , notConsidered
+, addGrouping
 , mkCurrentLevelGroupingM
 , lookupField
 , lookupFields
@@ -24,18 +29,32 @@ import qualified Eval.Result                            as R
 import qualified Eval.Grouping                          as G
 
 import qualified Data.List.NonEmpty                     as NE
+import qualified Data.HashMap.Strict                    as M
+import qualified Data.Aeson                             as Json
 import           Control.Monad.Trans.Class
 import qualified Control.Monad.Trans.Except             as E
 import qualified Control.Monad.Trans.State.Strict       as S
 import qualified Control.Monad.Trans.Writer.Strict      as W
 
 
+-- ### Types
 type EvalM = S.StateT GroupScope (W.WriterT [R.Result] (E.Except Text))
+type EvalTree = Tree [Position]
 
-runEvalM :: GroupScope -> EvalM a -> Either Text (a, [R.Result])
-runEvalM initialScope m =
-    E.runExcept . W.runWriterT $ S.evalStateT m initialScope
+-- ### Runners
+runEvalM :: EvalM a -> Either Text (a, [R.Result])
+runEvalM m =
+    E.runExcept . W.runWriterT $ S.evalStateT m (nonEmpty initialScope)
 
+initialVarEnv portfolioPositions =
+    M.fromList [("portfolio", initialTree)]
+  where
+    initialTree = -- TODO: GroupBy "PortfolioName" --> Tree
+        TermNode ("PortfolioName", "Test portfolio 123") (NE.toList portfolioPositions)
+
+initialScope = Level "Portfolio" (Json.String "")
+
+-- ### Helper functions
 fatalError :: Text -> EvalM a
 fatalError = throwLeft . Left
 
@@ -63,6 +82,30 @@ ruleViolated = logResult R.RuleViolated
 notConsidered :: NonEmpty Position -> EvalM ()
 notConsidered = logResult R.NotConsidered
 
+-- fieldTypeError :: R.FieldTypeError -> EvalM ()
+-- fieldTypeError typeError = logResult . typeError
+
+-- Group positions in a TermNode.
+-- A TermNode is transformed into a Node that
+--  contains a set of TermNodes (one for each created group).
+addGrouping
+    :: FieldName
+    -> EvalTree
+    -> EvalM EvalTree
+addGrouping fieldName tree =
+    go tree
+  where
+    mkTermNode :: (FieldValue, NonEmpty Position) -> EvalTree
+    mkTermNode (fieldValue, positions) = TermNode (fieldName, fieldValue) (NE.toList positions)
+    go (Node lab subTree) = do
+        newSubTree <- mapM go subTree
+        return $ Node lab newSubTree
+    go tn@(TermNode _ []) = return tn
+    go (TermNode lab posList) = do
+        grouping <- mkCurrentLevelGroupingM fieldName (NE.fromList posList)
+        return $ Node lab (map mkTermNode (M.toList grouping))
+
+
 mkCurrentLevelGroupingM
     :: FieldName
     -> NonEmpty Position
@@ -88,11 +131,11 @@ lookupFields fieldName positions = do
   where
     addPos pos valueM = fmap (\val -> (pos, val)) valueM
 
-lookupLevel :: ScopeData -> GroupName -> EvalM (NonEmpty Position)
+lookupLevel :: ScopeData -> FieldName -> EvalM (NonEmpty Position)
 lookupLevel scopeData groupName =
     lookupLevel' groupName (NE.toList scopeData)
 
-lookupLevel' :: GroupName -> [LevelPos] -> EvalM (NonEmpty Position)
+lookupLevel' :: FieldName -> [LevelPos] -> EvalM (NonEmpty Position)
 lookupLevel' groupName [] = fatalError $ "Grouping '" <> groupName <> "' doesn't exist"
 lookupLevel' groupName (LevelPos (Level groupName' _) positions : levelPositions)
     | groupName == groupName' = return positions
