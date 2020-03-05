@@ -6,6 +6,7 @@ import LangPrelude
 import qualified Output
 import qualified Analyze.Check
 import qualified Eval.Eval                        as Eval
+import qualified Eval.Types
 import qualified Rules.CountryBondValue           as Rule
 import qualified Rules.DataExpr
 import           System.Environment               (getArgs)
@@ -20,9 +21,10 @@ main :: IO ()
 main = do
     inputFile <- argOrFail <$> getArgs
     positions <- toNonEmpty . value . handleDecodeResult <$> Json.eitherDecodeFileStrict' inputFile
-    let scopeDataList = handleEvalResult $
+    let (scopeDataList, res) = handleEvalResult $
             Eval.runEvalData positions Rules.DataExpr.issuersAbove5Pct
-    print scopeDataList
+    printJson res
+    hPutStrLn stderr . toS . Json.encode . Eval.Types.toOutputTmp $ scopeDataList
   where
     toNonEmpty = fromMaybe (error "ERROR: Empty input data") . NE.nonEmpty
     printJson = Char8.putStrLn . Json.encode . Output.toObjectSecId . NE.fromList

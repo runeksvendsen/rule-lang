@@ -2,7 +2,9 @@
 module Eval.Types
 ( Env
 , Level(..)
-, LevelPos(..)
+, LevelPos
+, LevelPos'(..)
+, toOutputTmp
 , Position
 , ScopeData
 , GroupScope
@@ -17,7 +19,8 @@ import LangPrelude
 import Absyn
 import qualified Data.Aeson                             as Json
 import qualified Data.List.NonEmpty                     as NE
-
+-- TMP
+import qualified Data.HashMap.Strict              as M
 
 type Env a = Map FieldName a
 
@@ -27,12 +30,14 @@ type Env a = Map FieldName a
 data Level = Level
     { lGroupName    :: GroupName    -- e.g. "Country" or "SecurityID"
     , lGroupValue   :: Json.Value   -- e.g. 'String "DK"' or 'Number 12323535'
-    } deriving (Eq, Show)
+    }  deriving (Eq, Show, Generic)
 
-data LevelPos = LevelPos
+type LevelPos = LevelPos' Position
+
+data LevelPos' a = LevelPos
     { lpLevel       :: Level            -- e.g. "Country"
-    , lpPositions   :: NonEmpty Position
-    } deriving (Eq, Show)
+    , lpPositions   :: NonEmpty a
+    } deriving (Eq, Show, Generic)
 
 type Position = Map Text Json.Value
 type ScopeData = NonEmpty LevelPos
@@ -50,3 +55,20 @@ currentLevelPos = lpPositions . currentLevel
 -- | Get positions in the "Portfolio" (outermost) scope
 portfolioLevelPos :: ScopeData -> NonEmpty Position
 portfolioLevelPos = lpPositions . NE.last
+
+--- TMP ---
+instance Json.ToJSON Level
+instance Json.ToJSON a => Json.ToJSON (LevelPos' a)
+
+instance Functor LevelPos' where
+    fmap f (LevelPos level neA) = LevelPos level (NE.map f neA)
+
+toOutputTmp :: [ScopeData] -> Json.Value
+toOutputTmp =
+    Json.toJSON . map (NE.map (fmap getSecurityIdOrFail))
+  where
+    notFoundError pos =
+        error $ "ERROR: 'SecurityID' key not found for: " ++ show pos
+    getSecurityIdOrFail :: Position -> Json.Value
+    getSecurityIdOrFail pos =
+        fromMaybe (notFoundError pos) $ M.lookup "SecurityID" pos

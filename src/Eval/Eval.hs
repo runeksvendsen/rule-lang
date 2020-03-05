@@ -130,7 +130,7 @@ evalComparisonGroup groupValueExpr fCompare expectedValue scopeData = do
             count <- evalCountDistinct currentLevelPositions fieldName
             return $ groupCompare count currentLevelPositions
         SumOver fieldName relativeToOpt -> do
-            (positions, sumValue) <- evalSumOver scopeData fieldName undefined
+            (positions, sumValue) <- evalSumOver scopeData fieldName relativeToOpt
             return $ groupCompare sumValue positions
   where
     currentLevelPositions = currentLevelPos scopeData
@@ -167,15 +167,16 @@ data ComparisonResult a = ComparisonResult
 evalSumOver
     :: ScopeData
     -> FieldName
-    -> Maybe GroupName
+    -> Maybe DataExpr
     -> EvalM (NonEmpty Position, GroupValue)
 evalSumOver scopeData fieldName groupNameOpt = do
     (positions, sumValue) <- evalSum fieldName (currentLevelPos scopeData)
     addPositions positions =<< case groupNameOpt of
         Nothing -> return (Sum sumValue)    -- Absolute
-        Just groupName -> do                -- Relative
-            groupPositions <- lookupLevel scopeData groupName
-            -- TODO:
+        Just dataExpr -> do                -- Relative
+            groupPositions <- evalData varEnv dataExpr
+            -- groupPositions <- lookupLevel scopeData groupName
+
             groupSumValue <- snd <$> evalSum fieldName groupPositions
             return $ Percent (sumValue * 100 / groupSumValue)
   where

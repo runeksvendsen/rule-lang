@@ -14,9 +14,10 @@ noCashPositions =
         Var "portfolio"
 
 issuersExcludingCash =
-    GroupBy "Issuer" noCashPositions
+    GroupBy "IssuerID" noCashPositions
 
 issuersAbove5Pct =
-    Filter (where' ("DirtyValue" `relativeTo` noCashPositions) Gt (Percent 5))
+    Filter (where' ("DirtyValueRC" `relativeTo` noCashPositions) Gt (Percent 5))
         issuersExcludingCash
+        
 
