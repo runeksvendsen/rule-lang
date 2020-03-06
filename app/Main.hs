@@ -5,10 +5,11 @@ module Main where
 import LangPrelude
 import qualified Output
 import qualified Analyze.Check
-import qualified Eval.GroupComparison --                        as Eval
+import qualified Eval.LangExpr
+import qualified Eval.DataExpr
 import qualified Eval.Types
 import qualified Tree                        as Tree
--- import qualified Rules.CountryBondValue           as Rule
+import qualified Rules.CountryBondValue           as Rule
 import qualified Rules.DataExpr
 import           System.Environment               (getArgs)
 import           System.IO                        (stderr, hPutStrLn)
@@ -23,7 +24,7 @@ main = do
     inputFile <- argOrFail <$> getArgs
     positions <- toNonEmpty . value . handleDecodeResult <$> Json.eitherDecodeFileStrict' inputFile
     let (tree, res) = handleEvalResult $
-            Eval.runEvalData positions Rules.DataExpr.issuersAbove5Pct
+            Eval.DataExpr.runEvalData positions Rules.DataExpr.issuersAbove5Pct
     printJson res
     hPutStrLn stderr . Tree.drawTree $ tree
   where
@@ -44,7 +45,7 @@ mainCheck = do
     forM_ errors (\s -> putStrLn . T.unpack $ "\t" <> s)
 
 data JsonData = JsonData
-    { value   :: [Eval.Position]
+    { value   :: [Eval.Types.Position]
     } deriving Generic
 
 instance Json.FromJSON JsonData

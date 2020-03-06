@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Eval.DataExpr
-( evalData
+( eval
 , runEvalData
 , DataEnv
 , Position
@@ -14,7 +14,6 @@ import Eval.Monad
 import Tree
 import Eval.Common                          (getField)
 import AbsynFun
-import qualified Eval.GroupComparison
 
 import qualified Data.HashMap.Strict        as M
 import qualified Data.Aeson                 as Json
@@ -25,7 +24,7 @@ type DataEnv = Map Text EvalTree
 
 runEvalData :: NonEmpty Position -> DataExpr -> Either Text (EvalTree, [Result])
 runEvalData portfolioPositions expr =
-    runEvalM (nonEmpty $ initialScope) $ evalData initialVarEnv expr
+    runEvalM (nonEmpty $ initialScope) $ eval initialVarEnv expr
   where
     -- initialScopeData = nonEmpty $ LevelPos initialScope portfolioPositions
     initialScope = Level "Portfolio" (Json.String "")
@@ -33,33 +32,55 @@ runEvalData portfolioPositions expr =
     initialTree = -- TODO: GroupBy "PortfolioName" --> Tree
         TermNode ("PortfolioName", "Test portfolio 123") (NE.toList portfolioPositions)
 
-evalData
-    :: DataEnv -- ^ Variables
+eval
+    :: Env EvalTree -- ^ Variables
     -> DataExpr
     -> EvalM EvalTree
-evalData varEnv dataExpr =
+eval varEnv dataExpr =
     case dataExpr of
         GroupBy field input -> do
-            evalTree <- evalData varEnv input
+            evalTree <- eval varEnv input
             addGrouping field evalTree
 
         Filter comparison input -> do
-            evalTree <- evalData varEnv input
+            evalTree <- eval varEnv input
             let forMTermNode = flip mapMTermNode
             forMTermNode evalTree $ \posList ->
                 return $ case comparison of
                     Right groupComparison ->
-                        if Eval.GroupComparison.eval varEnv groupComparison
-                            then posList
+                        if evalGroupComparison varEnv groupComparison
+                            then NE.toList posList
                             else []
                     Left posComparison ->
-                        filter (evalPos posComparison) posList
+                        filter (evalPosComparison posComparison) (NE.toList posList)
 
         Var name -> do
             let varNotFound = "Variable '" <> name <> "' not defined"
             scopeDataList <- maybe (fatalError varNotFound) return (lookup name varEnv)
             return scopeDataList
 
-evalPos (PosComparison fieldName bCompare fieldValue) pos =
+evalPosComparison :: PosComparison -> Position -> Bool
+evalPosComparison (PosComparison fieldName bCompare fieldValue) pos =
     let fCompare = comparator bCompare
     in getField fieldName pos `fCompare` fieldValue
+
+
+-- Eval.GroupComparison
+evalGroupComparison
+    :: DataEnv
+    -> GroupComparison
+    -> Bool
+evalGroupComparison env (GroupComparison valueIn bCompare valueExp) =
+    let fCompare = comparator bCompare
+        eval = evalGroupValueExpr env
+    in eval valueIn `fCompare` eval valueExp
+
+-- Eval.GroupValueExpr
+evalGroupValueExpr :: DataEnv -> GroupValueExpr -> GroupValue
+evalGroupValueExpr env expr =
+    go expr
+  where
+    go (Literal groupValue) = groupValue
+    go (GroupFold groupFold dataExpr) = undefined
+    go (RelativeComparison a b) = undefined
+

@@ -9,7 +9,7 @@ import Eval.Types
 import Eval.Monad
 
 eval
-    :: Env DataExpr
+    :: Env EvalTree
     -> RuleExpr
-    -> EvalM Bool
+    -> EvalM a
 eval = undefined
