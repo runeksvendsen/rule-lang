@@ -4,7 +4,7 @@ module Analyze.Check
 where
 
 import LangPrelude
-import Absyn
+import AbsynFun
 
 
 checkData :: RuleExpr -> [Text]
@@ -29,8 +29,8 @@ checkData expr' = undefined
 
 -- checkDataExpr
 --     :: DataExpr
---     -> ([GroupName], [FieldName])
---     -> ([GroupName], [FieldName])
+--     -> ([FieldName], [FieldName])
+--     -> ([FieldName], [FieldName])
 -- checkDataExpr dataExpr (errors, groupEnv) =
 --     case dataExpr of
 --         GroupBy field -> (errors, field : groupEnv)
@@ -39,9 +39,9 @@ checkData expr' = undefined
 --             in (newErrors, groupEnv)
 
 -- checkComparison
---     :: [GroupName]
+--     :: [FieldName]
 --     -> Comparison
---     -> [GroupName]
+--     -> [FieldName]
 -- checkComparison groupEnv comparison =
 --     let groupNotFound name = "Grouping '" <> name <> "' doesn't exist"
 --         groupExists name = name `elem` groupEnv

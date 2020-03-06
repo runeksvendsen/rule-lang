@@ -8,6 +8,7 @@ module Eval.Monad
 , rulePassed
 , ruleViolated
 , notConsidered
+, addGrouping
 , mkCurrentLevelGroupingM
 , lookupField
 , lookupFields
@@ -18,12 +19,14 @@ module Eval.Monad
 where
 
 import LangPrelude
-import Absyn
+import AbsynFun
 import Eval.Types
+import Tree
 import qualified Eval.Result                            as R
 import qualified Eval.Grouping                          as G
 
 import qualified Data.List.NonEmpty                     as NE
+import qualified Data.HashMap.Strict                    as M
 import           Control.Monad.Trans.Class
 import qualified Control.Monad.Trans.Except             as E
 import qualified Control.Monad.Trans.State.Strict       as S
@@ -63,6 +66,27 @@ ruleViolated = logResult R.RuleViolated
 notConsidered :: NonEmpty Position -> EvalM ()
 notConsidered = logResult R.NotConsidered
 
+-- Group positions in a TermNode.
+-- A TermNode is transformed into a Node that
+--  contains a set of TermNodes (one for each created group).
+addGrouping
+    :: FieldName
+    -> Tree Position
+    -> EvalM (Tree Position)
+addGrouping fieldName tree =
+    go tree
+  where
+    mkTermNode :: (FieldValue, NonEmpty Position) -> Tree Position
+    mkTermNode (fieldValue, positions) = TermNode (fieldName, fieldValue) (NE.toList positions)
+    go (Node lab subTree) = do
+        newSubTree <- mapM go subTree
+        return $ Node lab newSubTree
+    go tn@(TermNode _ []) = return tn
+    go (TermNode lab posList) = do
+        grouping <- mkCurrentLevelGroupingM fieldName (NE.fromList posList)
+        return $ Node lab (map mkTermNode (M.toList grouping))
+
+
 mkCurrentLevelGroupingM
     :: FieldName
     -> NonEmpty Position
@@ -88,11 +112,11 @@ lookupFields fieldName positions = do
   where
     addPos pos valueM = fmap (\val -> (pos, val)) valueM
 
-lookupLevel :: ScopeData -> GroupName -> EvalM (NonEmpty Position)
+lookupLevel :: ScopeData -> FieldName -> EvalM (NonEmpty Position)
 lookupLevel scopeData groupName =
     lookupLevel' groupName (NE.toList scopeData)
 
-lookupLevel' :: GroupName -> [LevelPos] -> EvalM (NonEmpty Position)
+lookupLevel' :: FieldName -> [LevelPos] -> EvalM (NonEmpty Position)
 lookupLevel' groupName [] = fatalError $ "Grouping '" <> groupName <> "' doesn't exist"
 lookupLevel' groupName (LevelPos (Level groupName' _) positions : levelPositions)
     | groupName == groupName' = return positions

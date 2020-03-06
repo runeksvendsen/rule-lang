@@ -7,7 +7,7 @@ module Eval.Result
 where
 
 import LangPrelude
-import Absyn
+import AbsynFun
 import Eval.Types
 
 

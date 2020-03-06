@@ -4,20 +4,20 @@ module Rules.DataExpr
 where
 
 import LangPrelude
-import Rules.Syntax                                 (relativeTo, where')
-import Absyn
+-- import Rules.Syntax                                 (relativeTo, where')
+import AbsynFun
 
 
 -- Examples
-noCashPositions =
-    Filter (PosComparison "InstrumentType" NEq "Cash") $
-        Var "portfolio"
+-- noCashPositions =
+--     Filter (PosComparison "InstrumentType" NEq "Cash") $
+--         Var "portfolio"
 
-issuersExcludingCash =
-    GroupBy "IssuerID" noCashPositions
+-- issuersExcludingCash =
+--     GroupBy "IssuerID" noCashPositions
 
-issuersAbove5Pct =
-    Filter (where' ("DirtyValueRC" `relativeTo` noCashPositions) Gt (Percent 5))
-        issuersExcludingCash
-        
+issuersAbove5Pct = undefined
+    -- Filter (where' ("DirtyValueRC" `relativeTo` noCashPositions) Gt (Percent 5))
+    --     issuersExcludingCash
+
 

@@ -5,7 +5,7 @@ module Rules.CountryBondValue
 where
 
 import LangPrelude
-import Absyn
+import AbsynFun
 import Rules.Syntax
 
 
@@ -16,6 +16,6 @@ ruleExpr = undefined
     --                       , GroupBy "IssuerName"
     --                       ] $:
     -- forEach "countryIssuers" $:
-    --     rule (sumOf value (relativeTo "Country") LtE (Percent 5))
+    --     rule (sumOf value (relativeTo "Country") LtEq (Percent 5))
 
 value = "DirtyValueTotalRC"

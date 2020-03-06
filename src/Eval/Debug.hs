@@ -1,7 +1,7 @@
 module Eval.Debug where
 
 import LangPrelude
-import Absyn
+import AbsynFun
 import Eval.Monad
 import qualified Control.Monad.Trans.State.Strict       as S
 import Debug.Trace

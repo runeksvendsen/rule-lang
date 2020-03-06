@@ -2,7 +2,7 @@
 module Rules.Syntax where
 
 import LangPrelude
-import Absyn
+import AbsynFun
 import qualified Data.List.NonEmpty               as NE
 
 
@@ -18,7 +18,7 @@ infixr 8 |:
 a +++ b = And a b
 infixr 7 +++
 
-let' name dataExprList = Let name (NE.fromList dataExprList)
+let' = Let
 forEach = Foreach
 where' groupValueExpr boolCompare inputValue =
     GroupComparison groupValueExpr boolCompare inputValue
@@ -29,10 +29,10 @@ pos = PosComparison
 --(Comparison valExpr fComp value)
 rule = Rule
 sumOver = SumOver
-sumOverRelative fieldName relative = sumOver fieldName (Just relative)
--- of' fieldName = sumOver fieldName (Just "Portfolio")
-numberOfRelativeTo = GroupComparison . CountDistinct
-numberOf field comp val = GroupComparison (CountDistinct field) comp val
-forall = PosComparison
-sumOf field rel comp val = GroupComparison (SumOver field rel) comp val
-relativeTo field relative = SumOver field (Just relative)
+-- sumOverRelative fieldName relative = sumOver fieldName (Just relative)
+-- -- of' fieldName = sumOver fieldName (Just "Portfolio")
+-- numberOfRelativeTo = GroupComparison . CountDistinct
+-- numberOf field comp val = GroupComparison (CountDistinct field) comp val
+-- forall = PosComparison
+-- sumOf field rel comp val = GroupComparison (SumOver field rel) comp val
+-- relativeTo field relative = SumOver field (Just relative)

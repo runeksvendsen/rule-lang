@@ -5,7 +5,7 @@ module Rules.ThirtyfiveSixtySix
 where
 
 import LangPrelude
-import Absyn
+import AbsynFun
 import Rules.Syntax
 
 -- 35-30-6
@@ -22,17 +22,17 @@ ruleExpr = undefined
     -- let' "issuerGt35Pct" issuerNameValue $:
     -- let' "issues" (issuerNameValue ++ [GroupBy issue]) $:
     -- forEach "issuerGt35Pct" $:
-    --     rule (numberOf issue GtE (Count 6))
+    --     rule (numberOf issue GtEq (Count 6))
     --     +++
     --     forEach "issues" |:
-    --         rule (sumOf value (relativeTo "Portfolio") LtE (Percent 30))
+    --         rule (sumOf value (relativeTo "Portfolio") LtEq (Percent 30))
 
     -- forEach "IssuerName" $:
     --     where' (sumOf value (relativeTo "Portfolio") Gt (Percent 35)) $:
-    --         rule (numberOf issue GtE (Count 6))
+    --         rule (numberOf issue GtEq (Count 6))
     --         +++
     --         forEach issue |:
-    --                 rule (sumOf value (relativeTo "Portfolio") LtE (Percent 30))
+    --                 rule (sumOf value (relativeTo "Portfolio") LtEq (Percent 30))
 
 value = "DirtyValueTotalRC"
 issue = "SecurityID"

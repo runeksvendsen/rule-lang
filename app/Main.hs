@@ -5,9 +5,10 @@ module Main where
 import LangPrelude
 import qualified Output
 import qualified Analyze.Check
-import qualified Eval.Eval                        as Eval
+import qualified Eval.GroupComparison --                        as Eval
 import qualified Eval.Types
-import qualified Rules.CountryBondValue           as Rule
+import qualified Tree                        as Tree
+-- import qualified Rules.CountryBondValue           as Rule
 import qualified Rules.DataExpr
 import           System.Environment               (getArgs)
 import           System.IO                        (stderr, hPutStrLn)
@@ -21,10 +22,10 @@ main :: IO ()
 main = do
     inputFile <- argOrFail <$> getArgs
     positions <- toNonEmpty . value . handleDecodeResult <$> Json.eitherDecodeFileStrict' inputFile
-    let (scopeDataList, res) = handleEvalResult $
+    let (tree, res) = handleEvalResult $
             Eval.runEvalData positions Rules.DataExpr.issuersAbove5Pct
     printJson res
-    hPutStrLn stderr . toS . Json.encode . Eval.Types.toOutputTmp $ scopeDataList
+    hPutStrLn stderr . Tree.drawTree $ tree
   where
     toNonEmpty = fromMaybe (error "ERROR: Empty input data") . NE.nonEmpty
     printJson = Char8.putStrLn . Json.encode . Output.toObjectSecId . NE.fromList
