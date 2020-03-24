@@ -1,4 +1,7 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module LangPrelude
 ( module Prelude
 , module LangPrelude
@@ -22,7 +25,7 @@ import           Data.Text                as Text     (Text)
 import           Text.Printf              as Printf
 import           Data.HashMap.Strict      as Map      (HashMap, lookup, member)
 import qualified Data.HashMap.Strict      as M
-import           Data.List.NonEmpty       as NonEmpty (NonEmpty, NonEmpty((:|)), (<|), cons)
+import           Data.List.NonEmpty       as NonEmpty (NonEmpty, NonEmpty((:|)), (<|), cons, fromList)
 import           Protolude.Conv           as Conv
 import           Data.Hashable            as Hashable (Hashable)
 import           GHC.Generics             as Generic  (Generic)
@@ -70,3 +73,8 @@ showValue (Json.String txt) = txt
 showValue (Json.Number num) = T.pack $ printf "%f" (realToFrac num :: Double)
 showValue (Json.Bool b) = if b then "true" else "false"
 showValue Json.Null = "(null)"
+
+
+neText :: Text -> NonEmpty Char
+neText = fromList . T.unpack
+

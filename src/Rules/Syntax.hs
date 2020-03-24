@@ -15,24 +15,22 @@ f |: x =  f x
 infixr 8 |:
 
 (+++) :: RuleExpr -> RuleExpr -> RuleExpr
-a +++ b = And a b
+a +++ b = And a (nonEmpty b)
 infixr 7 +++
 
 let' = Let
 forEach = Foreach
 where'' groupValueExpr boolCompare inputValue =
-    FilterGroup $ GroupComparison groupValueExpr boolCompare inputValue
+    Comparison groupValueExpr boolCompare inputValue
 groupedBy input field = GroupBy field input
 percent = Literal . Percent
 where' input filterComp = Filter filterComp input
 
+relativeFold foldType field varIn varRel = GroupOp $
+                 GroupOp (PositionFold foldType field varIn)
+    `relativeTo` varRel
 
-group = GroupComparison
-pos = PosComparison
-rule = Rule
+rule a b c = Rule (Comparison a b c)
 sumOver = SumOver
 
--- numberOf field comp val = GroupComparison (CountDistinct field) comp val
--- forall = PosComparison
--- sumOf field rel comp val = GroupComparison (SumOver field rel) comp val
-relativeTo = RelativeComparison
+relativeTo = Relative

@@ -4,7 +4,6 @@ module Eval.Types
 , Level(..)
 , LevelPos
 , LevelPos'(..)
-, toOutputTmp
 , Position
 , ScopeData
 , GroupScope
@@ -21,8 +20,6 @@ import LangPrelude
 import Types
 import qualified Data.Aeson                             as Json
 import qualified Data.List.NonEmpty                     as NE
--- TMP
-import qualified Data.HashMap.Strict              as M
 
 
 type Env = Map Text
@@ -42,7 +39,6 @@ data LevelPos' a = LevelPos
     , lpPositions   :: NonEmpty a
     } deriving (Eq, Show, Generic)
 
-type Position = Map Text Json.Value
 type ScopeData = NonEmpty LevelPos
 type GroupScope = NonEmpty Level
 
@@ -65,13 +61,3 @@ instance Json.ToJSON a => Json.ToJSON (LevelPos' a)
 
 instance Functor LevelPos' where
     fmap f (LevelPos level neA) = LevelPos level (NE.map f neA)
-
-toOutputTmp :: [ScopeData] -> Json.Value
-toOutputTmp =
-    Json.toJSON . map (NE.map (fmap getSecurityIdOrFail))
-  where
-    notFoundError pos =
-        error $ "ERROR: 'SecurityID' key not found for: " ++ show pos
-    getSecurityIdOrFail :: Position -> Json.Value
-    getSecurityIdOrFail pos =
-        fromMaybe (notFoundError pos) $ M.lookup "SecurityID" pos

@@ -24,6 +24,6 @@ data ResultStatus
     | RuleViolated      -- ^ Violated a rule
     | NotConsidered     -- ^ Filtered away (by "when")
     | MissingField FieldName    -- ^ No such field exists (e.g. no such field as "Issuer")
-    | FieldTypeError GroupFold FieldName FieldValue
+    | FieldTypeError PositionFold FieldName FieldValue
       -- ^ Field data type incompatible with operation (e.g. "sum" on a field containing a 'String')
         deriving (Eq, Show, Ord, Generic)

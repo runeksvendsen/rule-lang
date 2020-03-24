@@ -1,6 +1,6 @@
--- {-# LANGUAGE ScopedTypeVariables #-}
 module Tree
 ( Tree(..)
+, EvalTree
 , mapTermNodeM
 , forTermNodeM
 , collectTermNodes
@@ -13,26 +13,26 @@ module Tree
 where
 
 import LangPrelude
--- import Absyn
-import Eval.Types
--- import Eval.Result
+import Types
+
 
 import qualified Data.Tree
 
 data Tree leafLabel =
       Node (FieldName, FieldValue) [Tree leafLabel]
     | TermNode (FieldName, FieldValue) leafLabel
+        deriving (Eq, Show)
 
 instance Functor Tree where
     fmap f (Node lab treeList) = Node lab (map (fmap f) treeList)
     fmap f (TermNode lab leaf) = TermNode lab (f leaf)
 
--- data Tree a = Empty | Leaf a | Node (Tree a) a (Tree a)
-
 instance Foldable Tree where
-   foldMap f (TermNode lab leaf) = f leaf
-   foldMap f (Node lab nodeList) =
+   foldMap f (TermNode _ leaf) = f leaf
+   foldMap f (Node _ nodeList) =
         foldr (\item result -> foldMap f item `mappend` result) mempty nodeList
+
+type EvalTree = Tree [Position]
 
 forTermNodeM
     :: Monad m
@@ -52,7 +52,7 @@ mapTermNodeM f tree =
     go pathAccum (Node lab subTree) =
         Node lab <$> mapM (go (lab : pathAccum)) subTree
     go pathAccum (TermNode lab leaf) =
-        let treePath = foldr (\nodeLab tree -> Node nodeLab [tree]) (TermNode lab leaf) pathAccum
+        let treePath = foldr (\nodeLab tree' -> Node nodeLab [tree']) (TermNode lab leaf) pathAccum
         in TermNode lab <$> f treePath
 
 collectTermNodeTrees
@@ -74,13 +74,10 @@ collectTermNodes tree =
     go (TermNode lab posList) =
         [(lab, posList)]
 
-fromTuple :: (FieldName, FieldValue) -> Level
-fromTuple = uncurry Level
-
 drawTree :: Show leafLabel => Tree [leafLabel] -> String
 drawTree = Data.Tree.drawTree . fmap show . toContainers
 
--- Used for converting to/from 'Data.Tree.Tree'
+-- | Used for converting to/from 'Data.Tree.Tree'
 data NodeLabel leafLabel
     = NodeLab (FieldName, FieldValue)
     | TermNodeLab (FieldName, FieldValue) leafLabel

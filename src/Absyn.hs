@@ -1,16 +1,18 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Absyn
 ( -- * Abstract syntax
   RuleExpr(..)
 , DataExpr(..)
-, GroupComparison(..)
-, PosComparison(..)
-, FilterComparison(..)
+, FieldValue(..)
+, Comparison(..)
 , GroupValueExpr(..)
-, GroupValue(..)
-, GroupFold(..)
+, GroupOp(..)
+, Literal(..)
+, PositionFold(..)
   -- * Value types
 , FieldName
-, FieldValue
+, Number
+, fromReal
   -- * Re-exports
 , module Comparison
 , module Tree
@@ -21,72 +23,80 @@ import LangPrelude
 import Types
 import Tree                                 as Tree
 import Comparison                           as Comparison
-import qualified Data.Aeson                 as Json
 
 
-data GroupValue =
-      Count Word        -- 'CountDistinct'
-    | Sum Double        -- 'SumOver'
-    | Percent Double    -- 'RelativeComparison'
-        deriving (Show)
+-- TODO: move Number+String+Bool out of "FieldValue"?
+data Literal =
+      Integer Integer
+    | Percent Number
+    | FieldName Text            -- the name of a field in a Position
+    | FieldValue FieldValue     -- the contents of a field in a Position
+        deriving (Show, Generic)
 
-data GroupValueExpr =
-      Literal GroupValue
-    | GroupFold GroupFold FieldName DataExpr
-    | RelativeComparison GroupValueExpr GroupValueExpr  -- 'Percent'
-        deriving (Eq, Show)
+data GroupValueExpr
+    = Literal Literal
+    | GroupOp GroupOp
+    | DataExpr DataExpr
+    | Var VarName
+        deriving (Eq, Show, Generic)
 
--- Input:  grouping
--- Output: 'GroupValue'
-data GroupFold =
-      CountDistinct     -- 'Count'          (Equality)
-    | SumOver           -- 'Sum'            (+)
-    | Average           -- <any type>       (+ /)
-    | Max               -- <any type>       (Order)
-    | Min               -- <any type>       (Order)
+data DataExpr
+    = GroupBy GroupValueExpr GroupValueExpr   -- ^ (groupingField :: Literal FieldName) (input :: DataExpr)
+    | Filter Comparison GroupValueExpr        -- ^ comparison (input :: DataExpr)
+        deriving (Eq, Show, Generic)
+
+data GroupOp
+    = GroupCount GroupValueExpr -- grouping
+    | PositionFold PositionFold GroupValueExpr GroupValueExpr   -- foldType fieldName input
+    | Relative GroupValueExpr GroupValueExpr -- numeratorGroupOp denominatorInput
+        deriving (Eq, Show, Generic)
+
+-- [Position] -> 'Literal'
+-- Output: 'Number'
+data PositionFold =
+      SumOver           -- (+)
+    | Average           -- (+ /)
+    | Max               -- (Order)
+    | Min               -- (Order)
         deriving (Eq, Ord, Generic, Show)
 
-data GroupComparison =
-      GroupComparison GroupValueExpr BoolCompare GroupValueExpr
-        deriving (Eq, Show)
-
--- Input:  (Position, fieldName, fieldValue)
-data PosComparison = PosComparison FieldName BoolCompare FieldValue
-    deriving (Eq, Show)
-
-data FilterComparison =
-      FilterGroup GroupComparison
-    | FilterPos PosComparison
-        deriving (Eq, Show)
+-- Input:  'TermNode'
+-- Output: 'Bool'
+data Comparison =
+    Comparison GroupValueExpr BoolCompare GroupValueExpr
+        deriving (Eq, Show, Generic)
 
 type VarName = Text
 
 data RuleExpr
-    = Let VarName DataExpr RuleExpr     -- ^ name rhs scope
-    | Foreach DataExpr RuleExpr -- ^ for each country in dataExpr: <scope>
-    | Rule GroupComparison              -- ^ a condition that must be true
-    | And RuleExpr RuleExpr             -- ^ logical "and"
-        deriving (Eq, Show)
-
-data DataExpr
-    = GroupBy FieldName DataExpr        -- ^ groupingField input
-    | Var VarName
-    | Filter FilterComparison DataExpr  -- ^ comparison input
-        deriving (Eq, Show)
+    = Let VarName GroupValueExpr RuleExpr               -- ^ name rhs scope
+    | Foreach GroupValueExpr GroupValueExpr RuleExpr    -- ^ fieldName dataExpr scope
+    | Rule Comparison                                   -- ^ a condition that must be true
+    | And RuleExpr (NonEmpty RuleExpr)                  -- ^ logical "and"
+        deriving (Eq, Show, Generic)
 
 
 
+
+
+{-
+    count (group Portfolio by IssuerName) >= 10
+    for each Country in Portfolio:
+        sum DirtyValue of Country relative to Portfolio <= 15%
+        for each IssuerName in Country:
+            count (group IssuerName by IssueID) >= 3
+-}
 
 -- VI
 {-
 
-    let foreignCountrySecurities =
-            portfolio grouped by Country where Country <> Dk
-    let dirtyValueForeignSecurities =
+    let foreignCountrySecurities =                                                      -- GroupBy "Country:" $: Filter (FilterPos $ PosComparison "Country" NEq "DK")
+            portfolio grouped by Country: where Country <> Dk
+    let dirtyValueForeignSecurities =                                                   -- PositionFold SumOver "DirtyValue" (Var "foreignCountrySecurities")
             sum over DirtyValue of foreignCountrySecurities
-    let relativeDirtyValueForeignSecurities =
-            dirtyValueForeignSecurities relative to sum over DirtyValue of portfolio
-    let numberOfForeignCountries = groupCount foreignCountrySecurities
+    let relativeDirtyValueForeignSecurities =                                           -- Relative (Var "dirtyValueForeignSecurities") (PositionFold SumOver "DirtyValue" (Var "Portfolio"))
+            dirtyValueForeignSecurities relative to sum over DirtyValue of Portfolio
+    let numberOfForeignCountries = groupCount foreignCountrySecurities                  -- GroupCount (Var "foreignCountrySecurities")
 
     if relativeDirtyValueForeignSecurities >= 80%:
         numberOfForeignCountries >= 5
@@ -98,6 +108,12 @@ data DataExpr
         numberOfForeignCountries >= 2
 
 -}
+
+
+
+
+
+
 
 -- complex
 {-
@@ -151,10 +167,24 @@ data DataExpr
 
     define portfolioLevelIssueCount = count distinct SecurityID in Portfolio
     for each Issuer:
-        where Value > 35%:
+
+        if Value of Issuer > 35%:
             portfolioLevelIssueCount >= 6
             for each SecurityID:
                 Value <= 30%
+
+-}
+
+
+--     a minimum of five different issues per issuer
+-- AND value of each issue <= 5% (relative to Portoflio)
+{-
+    let issuers = Portfolio grouped by IssuerName
+    for all issuers:
+        let issues = IssuerName grouped by IssueID
+        count issues >= 5
+        for all issues:
+            sum DirtyValue of IssueID relative to Portfolio <= 5%
 -}
 
 
@@ -196,7 +226,7 @@ data DataExpr
     let tenPctCountryIssuers =
             for each Country:
                 for each Issuer:
-                    where Value relative to Country >= 10%
+                    where Value of Issuer relative to Country >= 10%
     if Value of tenPctCountryIssuers relative to Portfolio > 50%
         then count distinct tenPctCountryIssuers >= 7
     if Value of tenPctCountryIssuers relative to Portfolio > 40%
@@ -211,13 +241,12 @@ data DataExpr
 -- #### TYPE CLASS INSTANCES #### --
 
 -- TODO: static check of invalid comparisons
-instance Eq GroupValue where
-    (Count   a) == (Count   b) = a == b
-    (Sum     a) == (Sum     b) = a == b
+instance Eq Literal where
+    (Integer   a) == (Integer   b) = a == b
     (Percent a) == (Percent b) = a == b
     (==) a b = error $ "Invalid comparison: " ++ show (a, b)
 
--- instance Eq GroupValue where
+-- instance Eq Literal where
 --     (Field (Json.String strA)) == (Field (Json.String strB)) =
 --         strA == strB
 --     -- Below throws an error
@@ -226,18 +255,17 @@ instance Eq GroupValue where
 --     (==) a b = error $ "Invalid comparison: " ++ show (a, b)
 
 -- TODO: static check of invalid comparisons
-instance Ord GroupValue where
-    (Count   a) `compare` (Count   b) = a `compare` b
-    (Sum     a) `compare` (Sum     b) = a `compare` b
+instance Ord Literal where
+    (Integer   a) `compare` (Integer   b) = a `compare` b
     (Percent a) `compare` (Percent b) = a `compare` b
     compare a b = error $ "Invalid comparison: " ++ show (a, b)
 
-instance Ord Json.Value where
-    (Json.Number a) `compare` (Json.Number b) = a `compare` b
+instance Ord FieldValue where
+    (Number a) `compare` (Number b) = a `compare` b
     -- Below throws an error
     compare a b = error $ "Field comparison not implemented: " ++ show (a,b)
 
-instance Hashable GroupFold
+instance Hashable PositionFold
 
 
 

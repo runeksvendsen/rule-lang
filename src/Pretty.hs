@@ -3,13 +3,11 @@ module Pretty where
 
 import LangPrelude
 import Absyn
-import Data.List
-import qualified Data.Text as T
---TEST
-import qualified Rules.FiveTenForty         as Rule2
 
-main :: IO ()
-main = putStrLn $ toS $ Pretty.pp "  " Rule2.ruleExpr
+import Data.List
+import qualified Data.List.NonEmpty as NE
+import qualified Data.Text as T
+
 
 pp :: Text -> RuleExpr -> Text
 pp indentation expr' =
@@ -18,58 +16,63 @@ pp indentation expr' =
         $ go 0 expr'
   where
     go :: Word -> RuleExpr -> [(Word, Text)]
-    go level (And a b) = go level a <> go level b
+    go level (And a b) = go level a <> concat (map (go level) (NE.toList b))
     go level (Let name rhs scope) =
-        (level, "let " <> (name :: Text) <> " = " <> ppData rhs)
+        (level, "let " <> (name :: Text) <> " = " <> ppGroupValueExpr rhs)
             : go level scope
-    go level (Foreach dataExpr scope) =
-        (level, "for all " <> ppData dataExpr <> ":")
-        : go (level+1) scope
+    go level (Foreach fieldName dataExpr scope) =
+        (level, "for each " <> ppGroupValueExpr fieldName <> " in " <> ppGroupValueExpr dataExpr <> " {")
+        : go (level+1) scope ++ [(level, "}")]
     go level (Rule groupComparison) =
-        [(level, "rule: " <> ppGroupComparison groupComparison)]
+        [(level, "rule: " <> ppComparison groupComparison)]
 
-ppData :: DataExpr -> Text
-ppData =
-    T.concat . intersperse " " . go
+ppDataExpr :: DataExpr -> Text
+ppDataExpr =
+    T.unwords . go
   where
     go :: DataExpr -> [Text]
-    go (Var varName) = [varName]
     go (GroupBy fieldName dataExpr) =
-        go dataExpr ++ ["grouped by " <> fieldName]
+        [ppGroupValueExpr dataExpr, "grouped by", ppGroupValueExpr fieldName]
     go (Filter filterComparison dataExpr) =
-        go dataExpr ++ ["where: " <> ppFilterComparison filterComparison]
+        [ppGroupValueExpr dataExpr, "where", ppComparison filterComparison]
 
 
-ppGroupValue :: GroupValue -> Text
-ppGroupValue (Count count) = show' count
-ppGroupValue (Sum sum') = show' sum'
-ppGroupValue (Percent percent) = show' percent <> "%"
+ppLiteral :: Literal -> Text
+ppLiteral (Integer count) = show' count
+ppLiteral (Percent num) = show' num <> "%"
+ppLiteral (FieldName text) = text
+ppLiteral (FieldValue fieldValue) = ppFieldValue fieldValue
+
+
+ppFieldValue :: FieldValue -> Text
+ppFieldValue (Number num) = show' num
+ppFieldValue (String str) = "\"" <> str <> "\""
+ppFieldValue (Bool b) = show' b
 
 ppGroupValueExpr :: GroupValueExpr -> Text
-ppGroupValueExpr (Literal groupValue) =
-    ppGroupValue groupValue
-ppGroupValueExpr (GroupFold groupFold fieldName dataExpr) =
-    T.unwords [ppGroupFold groupFold, fieldName, "of", ppData dataExpr]
-ppGroupValueExpr (RelativeComparison e1 e2) =
+ppGroupValueExpr (GroupOp groupOp) = ppGroupOp groupOp
+ppGroupValueExpr (DataExpr dataExpr) = ppDataExpr dataExpr
+ppGroupValueExpr (Var name) = name
+ppGroupValueExpr (Literal lit) = ppLiteral lit
+
+ppGroupOp :: GroupOp -> Text
+ppGroupOp (GroupCount groupValueExpr) = "count " <> ppGroupValueExpr groupValueExpr
+ppGroupOp (PositionFold positionFold fieldName groupValueExpr) =
+    T.unwords [ppPositionFold positionFold, ppGroupValueExpr fieldName, "of", ppGroupValueExpr groupValueExpr]
+ppGroupOp (Relative e1 e2) =
     T.unwords [ppGroupValueExpr e1, "relative to", ppGroupValueExpr e2]
 
-ppGroupFold :: GroupFold -> Text
-ppGroupFold CountDistinct = "count"
-ppGroupFold SumOver = "sum over"
-ppGroupFold Average = "average"
-ppGroupFold Max = "maximum"
-ppGroupFold Min = "minimum"
+ppPositionFold :: PositionFold -> Text
+ppPositionFold SumOver = "sum"
+ppPositionFold Average = "average"
+ppPositionFold Max = "maximum"
+ppPositionFold Min = "minimum"
 
-ppGroupComparison :: GroupComparison -> Text
-ppGroupComparison (GroupComparison e1 bCompare e2) =
-    T.unwords [ppGroupValueExpr e1, show' bCompare, ppGroupValueExpr e2]
-
-ppPosComparison :: PosComparison -> Text
-ppPosComparison (PosComparison fieldName bCompare fieldValue) =
-    T.unwords [fieldName, show' bCompare, showValue fieldValue]
-
-ppFilterComparison :: FilterComparison -> Text
-ppFilterComparison (FilterGroup groupComparison) =
-    ppGroupComparison groupComparison
-ppFilterComparison (FilterPos posComparison) =
-    ppPosComparison posComparison
+ppComparison :: Comparison -> Text
+ppComparison (Comparison e1 bCompare e2) =
+    T.unwords
+        [ ppGroupValueExpr e1
+        , toS $ fromMaybe (error $ "BUG: 'valueToString': " ++ show bCompare) $
+            Data.List.lookup bCompare valueToString
+        , ppGroupValueExpr e2
+        ]

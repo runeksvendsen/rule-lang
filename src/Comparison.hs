@@ -1,11 +1,13 @@
 module Comparison
 ( BoolCompare(..)
 , comparator
+, valueToString -- Print
+, stringToValue -- Parse
 )
 where
 
 import LangPrelude
-
+import qualified Prelude
 
 comparator :: Ord a => BoolCompare -> a -> a -> Bool
 comparator Eq   = (==)
@@ -22,13 +24,20 @@ data BoolCompare
     | Gt
     | LtEq
     | GtEq
+        deriving (Eq, Show, Read, Generic)
 
-instance Show BoolCompare where
-    show Eq   = "=="
-    show NEq  = "!="
-    show Lt   = "<"
-    show Gt   = ">"
-    show LtEq = "<="
-    show GtEq = ">="
+valueToString :: [(BoolCompare, String)]
+valueToString =
+    [ (Eq   , "==")
+    , (NEq  , "!=")
+    , (Lt   , "<")
+    , (Gt   , ">")
+    , (LtEq , "<=")
+    , (GtEq , ">=")
+    ]
 
-deriving instance Eq BoolCompare
+stringToValue :: [(String, BoolCompare)]
+stringToValue =
+    map swap valueToString
+  where
+    swap (a,b) = (b,a)

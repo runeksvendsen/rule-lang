@@ -39,19 +39,20 @@ import qualified Control.Monad.Trans.Writer.Strict      as W
 
 -- ### Types
 type EvalM = S.StateT GroupScope (W.WriterT [R.Result] (E.Except Text))
-type EvalTree = Tree [Position]
 
 -- ### Runners
 runEvalM :: EvalM a -> Either Text (a, [R.Result])
 runEvalM m =
     E.runExcept . W.runWriterT $ S.evalStateT m (nonEmpty initialScope)
 
+initialVarEnv :: NonEmpty a -> HashMap Text (Tree [a])
 initialVarEnv portfolioPositions =
     M.fromList [("portfolio", initialTree)]
   where
     initialTree = -- TODO: GroupBy "PortfolioName" --> Tree
         TermNode ("PortfolioName", "Test portfolio 123") (NE.toList portfolioPositions)
 
+initialScope :: Level
 initialScope = Level "Portfolio" (Json.String "")
 
 -- ### Helper functions
@@ -81,9 +82,6 @@ ruleViolated = logResult R.RuleViolated
 
 notConsidered :: NonEmpty Position -> EvalM ()
 notConsidered = logResult R.NotConsidered
-
--- fieldTypeError :: R.FieldTypeError -> EvalM ()
--- fieldTypeError typeError = logResult . typeError
 
 -- Group positions in a TermNode.
 -- A TermNode is transformed into a Node that
