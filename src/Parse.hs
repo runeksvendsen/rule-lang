@@ -102,24 +102,12 @@ pForEach = D.dbg "pForEach" $ do
     scope <- braces pRuleExpr
     return $ Foreach fieldNameExpr dataExpr scope
 
--- pIfThenElse :: Parser RuleExpr
--- pIfThenElse = D.dbg "pIfThenElse" $ do
---     keyword "if"
---     comparison <- pComparison
---     thenExpr <- braces pRuleExpr
---     elseIfs <- many $ do
---         keyword "else"
-    -- if <comparison> {
-    --         ...
-    --     } else if <comparison> {
-    --         ...
-    --     }
-
 braces :: Parser a -> Parser a
 braces = Text.Megaparsec.between
-    (discardSurroundingWhitespace $ Text.Megaparsec.Char.char '{')  -- discard whitespace+newline(s) after '{'
-    (discardSurroundingWhitespace $ Text.Megaparsec.Char.char '}')  -- discard whitespace+newline(s) after '}'
+    (discardSurroundingWhitespace $ Text.Megaparsec.Char.char '{')
+    (discardSurroundingWhitespace $ Text.Megaparsec.Char.char '}')
   where
+    -- discard whitespace (including newlines) before and after
     discardSurroundingWhitespace p = scn >> p >> scn
 
 pRule :: Parser RuleExpr
@@ -135,8 +123,9 @@ pBoolCompare = D.dbg "pBoolCompare" $ do
         Just bComp -> return bComp
         Nothing -> failParse "Unknown operator" (map (toS . fst) Comparison.stringToValue)
 
--- TODO: document "reserved" words, e.g. "sum" or "average".
--- 'Literal' is last because otherwise e.g. "sum" is parsed as variable.
+-- TODO: document reserved keywords, e.g. "sum" or "average".
+-- 'Var' is last because otherwise e.g. "sum" is parsed as
+--   a variable instead of as a 'PositionFold'
 pGroupValueExpr :: Parser GroupValueExpr
 pGroupValueExpr = D.dbg "pGroupValueExpr" $
         try pGroupOp
@@ -152,7 +141,6 @@ pLiteral = D.dbg "pLiteral" $
     <|> try (Integer <$> L.decimal)
     <|> try (FieldValue <$> pFieldValue)
 
-
 pPercentage :: Parser Literal
 pPercentage = do
     num <- pNumber
@@ -161,7 +149,7 @@ pPercentage = do
 
 pNumber :: Parser Number
 pNumber = D.dbg "pNumber" $
-    try (fromReal @Double <$> L.float) <|> fromIntegral <$> L.decimal
+    try (fromReal @Double <$> L.float) <|> fromIntegral @Integer <$> L.decimal
 
 pFieldValue :: Parser FieldValue
 pFieldValue = D.dbg "pFieldValue" $
@@ -177,7 +165,7 @@ pGroupOp = D.dbg "pGroupOp" $ fmap GroupOp $
     <|> try pPositionFoldRelative
     <|> try pPositionFold
 
--- Parser of both 'PositionFold' and 'Relative'
+-- Parser of 'PositionFold' and 'Relative'
 pPositionFold :: Parser GroupOp
 pPositionFold = D.dbg "pPositionFold" $ do
     fold <- pFold
@@ -186,6 +174,7 @@ pPositionFold = D.dbg "pPositionFold" $ do
     input <- skipTrailingWhitespace pGroupValueExpr
     return $ PositionFold fold fieldName input
 
+-- Parser of 'Relative'
 pPositionFoldRelative :: Parser GroupOp
 pPositionFoldRelative = do
     positionFold <- pPositionFold
@@ -211,6 +200,8 @@ pDataExpr =
         void $ Text.Megaparsec.Char.char ')'
         return res
 
+-- A 'DataExpr' will always start with a variable,
+--  followed by zero or more 'Filter' and/or 'GroupBy' operations.
 pDataExpr' :: Parser GroupValueExpr
 pDataExpr' = D.dbg "pDataExpr" $ do
     var <- skipTrailingWhitespace pVar
@@ -239,6 +230,7 @@ pComparison = D.dbg "pComparison" $ do
     rhs <- skipTrailingWhitespace pGroupValueExpr
     return $ Comparison lhs bComp rhs
 
+-- | Variables start with a lower case letter
 pVar :: Parser Text
 pVar = D.dbg "pVar" $ do
     word@(firstChar : remainingChars) <- pWord
@@ -251,6 +243,7 @@ pWord :: Parser String
 pWord =
     some Text.Megaparsec.Char.letterChar
 
+-- | Field names start with an upper case letter
 pFieldName :: Parser Literal
 pFieldName = D.dbg "pFieldName" $
     FieldName <$> pascalCaseWord
