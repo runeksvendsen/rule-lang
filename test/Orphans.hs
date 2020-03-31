@@ -12,6 +12,15 @@ import qualified Data.List.NonEmpty as NE
 import Test.SmallCheck.Series
 import qualified Test.SmallCheck.Series as SS
 import qualified Data.Text                        as T
+-- DEBUG
+import Debug.Trace
+
+
+traceM' :: (Monad m, Show b) => m b -> m b
+traceM' mb = do
+    a <- mb
+    traceShowM a
+    return a
 
 
 
@@ -78,8 +87,13 @@ instance Monad m => Serial m Absyn.GroupOp where
             \/ (Absyn.PositionFold <$> SS.series <*> decDepth SS.series <*> decDepth SS.series)
             \/ (Absyn.Relative <$> decDepth SS.series <*> decDepth SS.series)
 
+-- Part of 'GroupValueExpr' via 'DataExpr', so further 'GroupValueExpr'
+--  must be constructed with decreased depth
+instance Monad m => Serial m Absyn.Comparison where
+    series =
+        Absyn.Comparison <$> decDepth SS.series <*> SS.series <*> decDepth SS.series
+
 instance Monad m => Serial m Absyn.PositionFold
-instance Monad m => Serial m Absyn.Comparison
 instance Monad m => Serial m Comparison.BoolCompare
 instance Monad m => Serial m Absyn.FieldValue
 
