@@ -46,6 +46,16 @@ instance Monad m => Serial m Absyn.Literal where
             \/ (Absyn.FieldName <$> pascalCaseText)
             \/ (Absyn.FieldValue <$> SS.series)
 
+instance Monad m => Serial m Absyn.RuleExpr where
+    series =
+        -- self-recursive
+        (Absyn.Let <$> SS.series <*> SS.series <*> decDepth SS.series)
+            -- self-recursive
+            \/ (Absyn.Foreach <$> SS.series <*> SS.series <*> decDepth SS.series)
+            \/ (Absyn.Rule <$> SS.series)
+            -- self-recursive
+            \/ (Absyn.And <$> decDepth SS.series <*> decDepth SS.series)
+
 instance Monad m => Serial m Absyn.GroupValueExpr where
     series =
         (Absyn.Literal <$> SS.series)
@@ -53,11 +63,23 @@ instance Monad m => Serial m Absyn.GroupValueExpr where
             \/ (Absyn.DataExpr <$> SS.series)
             \/ (Absyn.Var <$> camelCaseText)
 
-instance Monad m => Serial m Absyn.DataExpr
-instance Monad m => Serial m Absyn.GroupOp
+-- Part of 'GroupValueExpr', so further 'GroupValueExpr'
+--  must be constructed with decreased depth
+instance Monad m => Serial m Absyn.DataExpr where
+    series =
+        (Absyn.GroupBy <$> decDepth SS.series <*> decDepth SS.series)
+            \/ (Absyn.Filter <$> SS.series <*> decDepth SS.series)
+
+-- Part of 'GroupValueExpr', so further 'GroupValueExpr'
+--  must be constructed with decreased depth
+instance Monad m => Serial m Absyn.GroupOp where
+    series =
+        (Absyn.GroupCount <$> decDepth SS.series)
+            \/ (Absyn.PositionFold <$> SS.series <*> decDepth SS.series <*> decDepth SS.series)
+            \/ (Absyn.Relative <$> decDepth SS.series <*> decDepth SS.series)
+
 instance Monad m => Serial m Absyn.PositionFold
 instance Monad m => Serial m Absyn.Comparison
-instance Monad m => Serial m Absyn.RuleExpr
 instance Monad m => Serial m Comparison.BoolCompare
 instance Monad m => Serial m Absyn.FieldValue
 
