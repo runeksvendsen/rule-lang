@@ -23,12 +23,12 @@ traceM' mb = do
     return a
 
 
-
 -- ##### Inviariants #####
 --   * Variable names:
 --        * non-empty (no "")
 --        * start with a lower case letter
 --   * Field names start with a upper case letter
+--   * Numbers are non-negative
 
 
 nonEmptyList :: Serial m a => Series m [a]
@@ -48,10 +48,14 @@ camelCaseText = do
     let (firstChar : remainingChars) = nonEmptyString
     return $ T.pack (Char.toLower firstChar : remainingChars :: String)
 
+instance (Monad m, Serial m a) => Serial m (Absyn.VarOr a) where
+    series =
+        (Absyn.Var <$> camelCaseText)
+            \/ (Absyn.NotVar <$> SS.series)
+
 instance Monad m => Serial m Absyn.Literal where
     series =
-        (Absyn.Integer <$> SS.series)
-            \/ (Absyn.Percent <$> SS.series)
+        (Absyn.Percent <$> SS.series)
             \/ (Absyn.FieldName <$> pascalCaseText)
             \/ (Absyn.FieldValue <$> SS.series)
 
@@ -60,45 +64,55 @@ instance Monad m => Serial m Absyn.RuleExpr where
         -- self-recursive
         (Absyn.Let <$> SS.series <*> SS.series <*> decDepth SS.series)
             -- self-recursive
-            \/ (Absyn.Foreach <$> SS.series <*> SS.series <*> decDepth SS.series)
+            \/ (Absyn.Foreach <$> varOrFieldName <*> SS.series <*> decDepth SS.series)
             \/ (Absyn.Rule <$> SS.series)
-            -- self-recursive
-            \/ (Absyn.And <$> decDepth SS.series <*> decDepth SS.series)
 
-instance Monad m => Serial m Absyn.GroupValueExpr where
+varOrFieldName :: Monad m => Series m (Absyn.VarOr T.Text)
+varOrFieldName =
+    (Absyn.Var <$> camelCaseText)
+        \/ (Absyn.NotVar <$> pascalCaseText)
+
+instance Monad m => Serial m Absyn.VarExpr where
+    series =
+        (Absyn.ValueExpr <$> SS.series)
+            \/ (Absyn.DataExpr <$> SS.series)
+            \/ (Absyn.BoolExpr <$> SS.series)
+
+instance Monad m => Serial m Absyn.ValueExpr where
     series =
         (Absyn.Literal <$> SS.series)
             \/ (Absyn.GroupOp <$> SS.series)
-            \/ (Absyn.DataExpr <$> SS.series)
-            \/ (Absyn.Var <$> camelCaseText)
 
--- Part of 'GroupValueExpr', so further 'GroupValueExpr'
+-- Part of 'ValueExpr', so further 'ValueExpr'
 --  must be constructed with decreased depth
 instance Monad m => Serial m Absyn.DataExpr where
     series =
-        (Absyn.GroupBy <$> decDepth SS.series <*> decDepth SS.series)
+        (Absyn.GroupBy <$> SS.series <*> decDepth SS.series)
             \/ (Absyn.Filter <$> SS.series <*> decDepth SS.series)
 
--- Part of 'GroupValueExpr', so further 'GroupValueExpr'
+-- Part of 'ValueExpr', so further 'ValueExpr'
 --  must be constructed with decreased depth
 instance Monad m => Serial m Absyn.GroupOp where
     series =
         (Absyn.GroupCount <$> decDepth SS.series)
-            \/ (Absyn.PositionFold <$> SS.series <*> decDepth SS.series <*> decDepth SS.series)
-            \/ (Absyn.Relative <$> decDepth SS.series <*> decDepth SS.series)
+            \/ (Absyn.PositionFold <$> SS.series <*> varOrFieldName <*> decDepth SS.series)
+            \/ (Absyn.Relative <$> decDepth SS.series <*> varOrFieldName)
 
--- Part of 'GroupValueExpr' via 'DataExpr', so further 'GroupValueExpr'
+-- Part of 'ValueExpr' via 'DataExpr', so further 'ValueExpr'
 --  must be constructed with decreased depth
-instance Monad m => Serial m Absyn.Comparison where
+instance Monad m => Serial m Absyn.BoolExpr where
     series =
-        Absyn.Comparison <$> decDepth SS.series <*> SS.series <*> decDepth SS.series
+        (Absyn.Comparison <$> SS.series <*> SS.series <*> SS.series)
+            \/ (Absyn.And <$> decDepth SS.series <*> decDepth SS.series)
+            \/ (Absyn.Or <$> decDepth SS.series <*> decDepth SS.series)
+            \/ (Absyn.Not <$> decDepth SS.series)
 
 instance Monad m => Serial m Absyn.PositionFold
 instance Monad m => Serial m Comparison.BoolCompare
 instance Monad m => Serial m Absyn.FieldValue
 
 instance Monad m => Serial m Absyn.Number where
-    series = (Absyn.fromReal :: Double -> Absyn.Number) <$> SS.series
+    series = (Absyn.fromReal :: Double -> Absyn.Number) . getNonNegative <$> SS.series
 
 instance Monad m => Serial m T.Text where
     series = T.pack <$> nonEmptyList

@@ -5,7 +5,6 @@ import LangPrelude
 import Absyn
 
 import Data.List
-import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
 
 
@@ -16,15 +15,14 @@ pp indentation expr' =
         $ go 0 expr'
   where
     go :: Word -> RuleExpr -> [(Word, Text)]
-    go level (And a b) = go level a <> concat (map (go level) (NE.toList b))
     go level (Let name rhs scope) =
-        (level, "let " <> (name :: Text) <> " = " <> ppGroupValueExpr rhs)
+        (level, "let " <> (name :: Text) <> " = " <> ppVarExpr rhs)
             : go level scope
     go level (Foreach fieldName dataExpr scope) =
-        (level, "for each " <> ppGroupValueExpr fieldName <> " in " <> ppGroupValueExpr dataExpr <> " {")
+        (level, "for each " <> ppVarOr ppFieldName fieldName <> " in " <> ppVarOr ppDataExpr dataExpr <> " {")
         : go (level+1) scope ++ [(level, "}")]
-    go level (Rule groupComparison) =
-        [(level, "rule: " <> ppComparison groupComparison)]
+    go level (Rule boolExpr) =
+        [(level, "rule: " <> ppVarOr ppBoolExpr boolExpr)]
 
 ppDataExpr :: DataExpr -> Text
 ppDataExpr =
@@ -32,35 +30,46 @@ ppDataExpr =
   where
     go :: DataExpr -> [Text]
     go (GroupBy fieldName dataExpr) =
-        [ppGroupValueExpr dataExpr, "grouped by", ppGroupValueExpr fieldName]
-    go (Filter filterComparison dataExpr) =
-        [ppGroupValueExpr dataExpr, "where", ppComparison filterComparison]
+        [ppVarOr ppDataExpr dataExpr, "grouped by", ppVarOr ppFieldName fieldName]
+    go (Filter boolExpr dataExpr) =
+        [ppVarOr ppDataExpr dataExpr, "where", ppBoolExpr boolExpr]
 
+ppVarOr :: (t -> Text) -> VarOr t -> Text
+ppVarOr _ (Var var) = var
+ppVarOr ppFun (NotVar a) = ppFun a
 
 ppLiteral :: Literal -> Text
-ppLiteral (Integer count) = show' count
-ppLiteral (Percent num) = show' num <> "%"
-ppLiteral (FieldName text) = text
+ppLiteral (Percent num) = ppNumber num <> "%"
+ppLiteral (FieldName text) = ppFieldName text
 ppLiteral (FieldValue fieldValue) = ppFieldValue fieldValue
 
+ppFieldName :: Text -> Text
+ppFieldName text = text
+
+ppNumber :: Number -> Text
+ppNumber num = show' (realToFrac num :: Double)
 
 ppFieldValue :: FieldValue -> Text
-ppFieldValue (Number num) = show' num
+ppFieldValue (Number num) = ppNumber num
 ppFieldValue (String str) = "\"" <> str <> "\""
-ppFieldValue (Bool b) = show' b
+ppFieldValue (Bool True) = "true"
+ppFieldValue (Bool False) = "false"
 
-ppGroupValueExpr :: GroupValueExpr -> Text
-ppGroupValueExpr (GroupOp groupOp) = ppGroupOp groupOp
-ppGroupValueExpr (DataExpr dataExpr) = ppDataExpr dataExpr
-ppGroupValueExpr (Var name) = name
-ppGroupValueExpr (Literal lit) = ppLiteral lit
+ppValueExpr :: ValueExpr -> Text
+ppValueExpr (GroupOp groupOp) = ppGroupOp groupOp
+ppValueExpr (Literal lit) = ppLiteral lit
+
+ppVarExpr :: VarExpr -> Text
+ppVarExpr (ValueExpr valueExpr) = ppValueExpr valueExpr
+ppVarExpr (DataExpr dataExpr) = ppDataExpr dataExpr
+ppVarExpr (BoolExpr boolExpr) = ppBoolExpr boolExpr
 
 ppGroupOp :: GroupOp -> Text
-ppGroupOp (GroupCount groupValueExpr) = "count " <> ppGroupValueExpr groupValueExpr
-ppGroupOp (PositionFold positionFold fieldName groupValueExpr) =
-    T.unwords [ppPositionFold positionFold, ppGroupValueExpr fieldName, "of", ppGroupValueExpr groupValueExpr]
+ppGroupOp (GroupCount dataExpr) = "count " <> ppVarOr ppDataExpr dataExpr
+ppGroupOp (PositionFold positionFold fieldName dataExpr) =
+    T.unwords [ppPositionFold positionFold, ppVarOr ppFieldName fieldName, "of", ppVarOr ppDataExpr dataExpr]
 ppGroupOp (Relative e1 e2) =
-    T.unwords [ppGroupValueExpr e1, "relative to", ppGroupValueExpr e2]
+    T.unwords [ppVarOr ppGroupOp e1, "relative to", ppVarOr ppFieldName e2]
 
 ppPositionFold :: PositionFold -> Text
 ppPositionFold SumOver = "sum"
@@ -68,11 +77,30 @@ ppPositionFold Average = "average"
 ppPositionFold Max = "maximum"
 ppPositionFold Min = "minimum"
 
-ppComparison :: Comparison -> Text
-ppComparison (Comparison e1 bCompare e2) =
+parenthesize :: Text -> Text
+parenthesize txt = "(" <> txt <> ")"
+
+ppBoolExpr :: BoolExpr -> Text
+ppBoolExpr (Comparison e1 bCompare e2) =
+    ppComparison e1 bCompare e2
+ppBoolExpr (And e1 e2) = T.unwords
+    [ ppVarOr ppBoolExpr e1
+    , "AND"
+    , ppVarOr ppBoolExpr e2
+    ]
+ppBoolExpr (Or e1 e2) = T.unwords
+    [ ppVarOr ppBoolExpr e1
+    , "OR"
+    , ppVarOr ppBoolExpr e2
+    ]
+ppBoolExpr (Not expr) = T.unwords
+    ["NOT", ppVarOr ppBoolExpr expr]
+
+ppComparison :: VarOr ValueExpr -> BoolCompare -> VarOr ValueExpr -> Text
+ppComparison e1 bCompare e2 =
     T.unwords
-        [ ppGroupValueExpr e1
+        [ ppVarOr ppValueExpr e1
         , toS $ fromMaybe (error $ "BUG: 'valueToString': " ++ show bCompare) $
             Data.List.lookup bCompare valueToString
-        , ppGroupValueExpr e2
+        , ppVarOr ppValueExpr e2
         ]

@@ -4,11 +4,13 @@ module Absyn
   RuleExpr(..)
 , DataExpr(..)
 , FieldValue(..)
-, Comparison(..)
-, GroupValueExpr(..)
+, BoolExpr(..)
+, ValueExpr(..)
+, VarExpr(..)
 , GroupOp(..)
 , Literal(..)
 , PositionFold(..)
+, VarOr(..)
   -- * Value types
 , FieldName
 , Number
@@ -25,30 +27,73 @@ import Tree                                 as Tree
 import Comparison                           as Comparison
 
 
--- TODO: move Number+String+Bool out of "FieldValue"?
-data Literal =
-      Integer Integer
-    | Percent Number
+--    rule: (0.0% == 0.0% AND 0.0% == 0.0%) AND a
+input :: RuleExpr
+input = Rule (NotVar
+    (And
+        (NotVar
+            (And (NotVar (Comparison (NotVar (Literal (Percent (fromReal 0.0)))) Eq (NotVar (Literal (Percent (fromReal 0.0))))))
+                 (NotVar (Comparison (NotVar (Literal (Percent (fromReal 0.0)))) Eq (NotVar (Literal (Percent (fromReal 0.0))))))
+            )
+        )
+        (Var "a")
+    ))
+
+--    rule: 0.0% == 0.0% AND (0.0% == 0.0% AND a)
+output :: RuleExpr
+output = Rule (NotVar
+    (And
+        (NotVar
+            (Comparison (NotVar (Literal (Percent (fromReal 0.0)))) Eq (NotVar (Literal (Percent (fromReal 0.0)))))
+        )
+        (NotVar
+            (And (NotVar (Comparison (NotVar (Literal (Percent (fromReal 0.0)))) Eq (NotVar (Literal (Percent (fromReal 0.0))))))
+            (Var "a")
+            )
+        )
+    ))
+
+
+
+
+-- | Either a variable reference or an actual expression
+data VarOr a
+    = Var Text
+    | NotVar a
+    deriving (Eq, Show, Generic)
+
+-- | Literals are expressions that cannot be evaluated any further.
+-- NB: 'ValueExpr'/'BoolExpr' can be evaluated to all values of type 'Literal' except 'FieldName'.
+-- There is no expression that evaluates to a 'FieldName'.
+data Literal
+    = Percent Number
     | FieldName Text            -- the name of a field in a Position
     | FieldValue FieldValue     -- the contents of a field in a Position
         deriving (Show, Generic)
 
-data GroupValueExpr
+data ValueExpr
     = Literal Literal
     | GroupOp GroupOp
-    | DataExpr DataExpr
-    | Var VarName
         deriving (Eq, Show, Generic)
 
+data BoolExpr
+    = Comparison (VarOr ValueExpr) BoolCompare (VarOr ValueExpr)    -- ^ compare two things
+    | And (VarOr BoolExpr) (VarOr BoolExpr)                         -- ^ logical AND
+    | Or (VarOr BoolExpr) (VarOr BoolExpr)                          -- ^ logical OR
+    | Not (VarOr BoolExpr)                                          -- ^ logical NOT
+        deriving (Eq, Show, Generic)
+
+test = Filter (Not $ Var "lol") (NotVar $ GroupBy (NotVar "Country") (Var "portfolio"))
+
 data DataExpr
-    = GroupBy GroupValueExpr GroupValueExpr   -- ^ (groupingField :: Literal FieldName) (input :: DataExpr)
-    | Filter Comparison GroupValueExpr        -- ^ comparison (input :: DataExpr)
+    = GroupBy VarOrFieldName (VarOr DataExpr)   -- ^ (groupingField :: Literal FieldName) (input :: DataExpr)
+    | Filter BoolExpr (VarOr DataExpr)          -- ^ comparison (input :: DataExpr)
         deriving (Eq, Show, Generic)
 
 data GroupOp
-    = GroupCount GroupValueExpr -- grouping
-    | PositionFold PositionFold GroupValueExpr GroupValueExpr   -- foldType fieldName input
-    | Relative GroupValueExpr GroupValueExpr -- numeratorGroupOp denominatorInput
+    = GroupCount (VarOr DataExpr)                               -- (grouping :: DataExpr)
+    | PositionFold PositionFold VarOrFieldName (VarOr DataExpr) -- foldType (fieldName :: FieldName) (input :: DataExpr)
+    | Relative (VarOr GroupOp) VarOrFieldName                   -- (numeratorGroupOp :: DataExpr) (denominatorInput :: DataExpr)
         deriving (Eq, Show, Generic)
 
 -- [Position] -> 'Literal'
@@ -60,19 +105,20 @@ data PositionFold =
     | Min               -- (Order)
         deriving (Eq, Ord, Generic, Show)
 
--- Input:  'TermNode'
--- Output: 'Bool'
-data Comparison =
-    Comparison GroupValueExpr BoolCompare GroupValueExpr
+type VarName = Text
+type VarOrFieldName = VarOr Text
+
+-- rhs of let-binding
+data VarExpr
+    = ValueExpr ValueExpr
+    | BoolExpr BoolExpr
+    | DataExpr DataExpr
         deriving (Eq, Show, Generic)
 
-type VarName = Text
-
 data RuleExpr
-    = Let VarName GroupValueExpr RuleExpr               -- ^ name rhs scope
-    | Foreach GroupValueExpr GroupValueExpr RuleExpr    -- ^ fieldName dataExpr scope
-    | Rule Comparison                                   -- ^ a condition that must be true
-    | And RuleExpr (NonEmpty RuleExpr)                  -- ^ logical "and"
+    = Let VarName VarExpr RuleExpr            -- ^ name rhs scope
+    | Foreach VarOrFieldName (VarOr DataExpr) RuleExpr  -- ^ (fieldName :: FieldName) (dataExpr :: DataExpr) scope
+    | Rule (VarOr BoolExpr)                             -- ^ a condition that must be true
         deriving (Eq, Show, Generic)
 
 
@@ -140,8 +186,9 @@ data RuleExpr
     for each Issuer:
         define relativeValue = sum Value of Issuer relative to portfolio
         relativeValue <= 5%
-        UNLESS
-        (relativeValue <= 10% AND Value min5PercentHoldings <= 40%)
+        relativeValue <= 10%
+
+        AND Value min5PercentHoldings <= 40%
 -}
 
 
@@ -240,11 +287,11 @@ data RuleExpr
 
 -- #### TYPE CLASS INSTANCES #### --
 
--- TODO: static check of invalid comparisons
 instance Eq Literal where
-    (Integer   a) == (Integer   b) = a == b
     (Percent a) == (Percent b) = a == b
-    (==) a b = error $ "Invalid comparison: " ++ show (a, b)
+    (FieldName a) == (FieldName b) = a == b
+    (FieldValue a) == (FieldValue b) = a == b
+    _ == _ = False
 
 -- instance Eq Literal where
 --     (Field (Json.String strA)) == (Field (Json.String strB)) =
@@ -256,8 +303,9 @@ instance Eq Literal where
 
 -- TODO: static check of invalid comparisons
 instance Ord Literal where
-    (Integer   a) `compare` (Integer   b) = a `compare` b
     (Percent a) `compare` (Percent b) = a `compare` b
+    (FieldName a) `compare` (FieldName b) = a `compare` b
+    (FieldValue a) `compare` (FieldValue b) = a `compare` b
     compare a b = error $ "Invalid comparison: " ++ show (a, b)
 
 instance Ord FieldValue where

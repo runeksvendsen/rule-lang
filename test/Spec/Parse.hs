@@ -17,6 +17,7 @@ import qualified Text.Megaparsec.Error
 
 import Test.Hspec
 import qualified Test.Hspec.SmallCheck  as SC
+import Debug.Trace (trace)
 
 
 -- | "parse (prettyPrint absyn) == absyn"
@@ -25,7 +26,8 @@ printParse absyn =
     let prettyPrint = Pretty.pp "  "
         prettyPrinted = prettyPrint absyn
         parse = Parse.parse Parse.documentParser ""
-    in case parse prettyPrinted of
+        debugTrace str = id
+    in case T.unpack ("\n" <> prettyPrinted) `debugTrace` parse prettyPrinted of
         Left e ->
             Left $ T.unpack $ T.unlines
                 [ "this fails to parse:"
