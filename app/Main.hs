@@ -61,6 +61,7 @@ test1 =
         [ "for each Country in portfolio {"
         , "   rule: sum DirtyValue of Country >= 100000"
         , "}"
+        , "AND"
         , "rule: average Exposure of portfolio < 3"
         ]
 

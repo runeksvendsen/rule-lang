@@ -7,7 +7,6 @@ module Comparison
 where
 
 import LangPrelude
-import qualified Prelude
 
 comparator :: Ord a => BoolCompare -> a -> a -> Bool
 comparator Eq   = (==)

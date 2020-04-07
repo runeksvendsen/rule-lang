@@ -4,11 +4,12 @@ module Absyn
   RuleExpr(..)
 , DataExpr(..)
 , FieldValue(..)
-, Comparison(..)
-, GroupValueExpr(..)
+, BoolExpr(..)
+, ValueExpr(..)
 , GroupOp(..)
 , Literal(..)
 , PositionFold(..)
+, VarOr(..)
   -- * Value types
 , FieldName
 , Number
@@ -25,30 +26,47 @@ import Tree                                 as Tree
 import Comparison                           as Comparison
 
 
--- TODO: move Number+String+Bool out of "FieldValue"?
+-- | Either a variable reference or an actual expression
+data VarOr a
+    = Var Text
+    | NotVar a
+    deriving (Eq, Show, Generic)
+
+-- | Literals are expressions that cannot be evaluated any further
 data Literal =
-      Integer Integer
+      Integer Integer   -- TODO: leave out? (only use floats?)
     | Percent Number
     | FieldName Text            -- the name of a field in a Position
     | FieldValue FieldValue     -- the contents of a field in a Position
         deriving (Show, Generic)
 
-data GroupValueExpr
+-- NB: there is nothing that evaluates to a "FieldName",
+--  but an expression can be evaluated to all other types
+
+data ValueExpr
     = Literal Literal
     | GroupOp GroupOp
-    | DataExpr DataExpr
-    | Var VarName
+    | BoolExpr BoolExpr
+    | DataExpr DataExpr -- NB: two representations of a variable reference to a DataExpr for 'VarOr ValueExpr'
+        deriving (Eq, Show, Generic)
+
+data BoolExpr
+    = Comparison (VarOr ValueExpr) BoolCompare (VarOr ValueExpr)    -- ^ compare two things
+    | And (VarOr BoolExpr) (VarOr BoolExpr)                         -- ^ logical AND
+    | Or (VarOr BoolExpr) (VarOr BoolExpr)                          -- ^ logical OR
+    | Not (VarOr BoolExpr)                                          -- ^ logical NOT
         deriving (Eq, Show, Generic)
 
 data DataExpr
-    = GroupBy GroupValueExpr GroupValueExpr   -- ^ (groupingField :: Literal FieldName) (input :: DataExpr)
-    | Filter Comparison GroupValueExpr        -- ^ comparison (input :: DataExpr)
+    = Source VarName
+    | GroupBy VarOrFieldName DataExpr   -- ^ (groupingField :: Literal FieldName) (input :: DataExpr)
+    | Filter BoolExpr DataExpr     -- ^ comparison (input :: DataExpr)
         deriving (Eq, Show, Generic)
 
 data GroupOp
-    = GroupCount GroupValueExpr -- grouping
-    | PositionFold PositionFold GroupValueExpr GroupValueExpr   -- foldType fieldName input
-    | Relative GroupValueExpr GroupValueExpr -- numeratorGroupOp denominatorInput
+    = GroupCount DataExpr                                  -- (grouping :: DataExpr)
+    | PositionFold PositionFold VarOrFieldName DataExpr     -- foldType (fieldName :: FieldName) (input :: DataExpr)
+    | Relative (VarOr GroupOp) (VarOr GroupOp)              -- (numeratorGroupOp :: DataExpr) (denominatorInput :: DataExpr)
         deriving (Eq, Show, Generic)
 
 -- [Position] -> 'Literal'
@@ -60,19 +78,13 @@ data PositionFold =
     | Min               -- (Order)
         deriving (Eq, Ord, Generic, Show)
 
--- Input:  'TermNode'
--- Output: 'Bool'
-data Comparison =
-    Comparison GroupValueExpr BoolCompare GroupValueExpr
-        deriving (Eq, Show, Generic)
-
 type VarName = Text
+type VarOrFieldName = VarOr Text
 
 data RuleExpr
-    = Let VarName GroupValueExpr RuleExpr               -- ^ name rhs scope
-    | Foreach GroupValueExpr GroupValueExpr RuleExpr    -- ^ fieldName dataExpr scope
-    | Rule Comparison                                   -- ^ a condition that must be true
-    | And RuleExpr (NonEmpty RuleExpr)                  -- ^ logical "and"
+    = Let VarName (VarOr ValueExpr) RuleExpr            -- ^ name rhs scope
+    | Foreach VarOrFieldName DataExpr RuleExpr  -- ^ (fieldName :: FieldName) (dataExpr :: DataExpr) scope
+    | Rule (VarOr BoolExpr)                             -- ^ a condition that must be true
         deriving (Eq, Show, Generic)
 
 
@@ -140,8 +152,9 @@ data RuleExpr
     for each Issuer:
         define relativeValue = sum Value of Issuer relative to portfolio
         relativeValue <= 5%
-        UNLESS
-        (relativeValue <= 10% AND Value min5PercentHoldings <= 40%)
+        relativeValue <= 10%
+
+        AND Value min5PercentHoldings <= 40%
 -}
 
 

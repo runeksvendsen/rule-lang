@@ -58,20 +58,11 @@ keyword = void . skipTrailingWhitespace . chunk
 -- #########
 
 documentParser :: Parser RuleExpr
-documentParser = pRuleExpr <* eof
+documentParser = skipTrailingNewline pRuleExpr <* eof
 
 pRuleExpr :: Parser RuleExpr
 pRuleExpr = D.dbg "pRuleExpr" $
-    pBoolRuleExpr <|> pLet
-
--- |
-pBoolRuleExpr :: Parser RuleExpr
-pBoolRuleExpr = D.dbg "pBoolRuleExpr" $ do
-    oneOrMore <- some $ skipTrailingNewline (pForEach <|> pRule)
-    case oneOrMore of
-        [] -> error "BUG: 'some' returned empty list"
-        [one] -> return one
-        first:nonEmptyRest -> return $ And first (fromList nonEmptyRest)
+    try pForEach <|> try pRule <|> try pLet
 
 pLet :: Parser RuleExpr
 pLet = do
@@ -79,21 +70,25 @@ pLet = do
     scope <- pRuleExpr
     return $ Let varName groupExpr scope
 
-pLetHeader :: Parser (Text, GroupValueExpr)
 pLetHeader = D.dbg "pLetHeader" $ do
     keyword "let"
     varName <- skipTrailingWhitespace pVar
     keyword "="
-    groupExpr <- skipTrailingWhitespace pGroupValueExpr
+    groupExpr <- skipTrailingWhitespace (pVarOr pValueExpr)
     return (varName, groupExpr)
 
-forEachHeader :: Parser (GroupValueExpr, GroupValueExpr)
+-- forEachHeader :: Parser (ValueExpr, ValueExpr)
 forEachHeader = D.dbg "forEachHeader" $ do
     keyword "for"
     keyword "each"
-    fieldName <- skipTrailingWhitespace pGroupValueExpr
+    fieldName <- skipTrailingWhitespace (pVarOr pFieldName)
     keyword "in"
-    dataExpr <- skipTrailingWhitespace pGroupValueExpr
+    -- supports:
+    --  var
+    -- (var)
+    --  var grouped_by/where x
+    --  (var grouped_by/where x)
+    dataExpr <- skipTrailingWhitespace (try (parens pDataExpr) <|> try pDataExpr)
     return (fieldName, dataExpr)
 
 pForEach :: Parser RuleExpr
@@ -113,7 +108,7 @@ braces = Text.Megaparsec.between
 pRule :: Parser RuleExpr
 pRule = D.dbg "pRule" $ do
     D.dbg "rule:" $ keyword "rule:"
-    Rule <$> pComparison
+    Rule <$> (pVarOr pBoolExpr)
 
 pBoolCompare :: Parser BoolCompare
 pBoolCompare = D.dbg "pBoolCompare" $ do
@@ -126,18 +121,22 @@ pBoolCompare = D.dbg "pBoolCompare" $ do
 -- TODO: document reserved keywords, e.g. "sum" or "average".
 -- 'Var' is last because otherwise e.g. "sum" is parsed as
 --   a variable instead of as a 'PositionFold'
-pGroupValueExpr :: Parser GroupValueExpr
-pGroupValueExpr = D.dbg "pGroupValueExpr" $
-        try pGroupOp
-    <|> try pDataExpr
+pValueExpr :: Parser ValueExpr
+pValueExpr = D.dbg "pValueExpr" $
+        try (GroupOp <$> pGroupOp)
+    <|> try (DataExpr <$> pDataExpr)
+    -- TODO: newlines between "AND" in rules but no for let-bindings?
+    <|> try (BoolExpr <$> pBoolExpr)
     <|> try (Literal <$> pLiteral)
-    <|> try (Var <$> pVar)
+
+pVarOr :: Parser a -> Parser (VarOr a)
+pVarOr pA = try (NotVar <$> pA) <|> try (Var <$> pVar)
 
 pLiteral :: Parser Literal
 pLiteral = D.dbg "pLiteral" $
         try pPercentage
-    <|> try pFieldName
-    -- NB: 'Number' (FieldValue) will also match integers
+    <|> try (FieldName <$> pFieldName)
+    -- TODO: 'Number' (FieldValue) will also match integers
     <|> try (Integer <$> L.decimal)
     <|> try (FieldValue <$> pFieldValue)
 
@@ -159,9 +158,10 @@ pFieldValue = D.dbg "pFieldValue" $
     pStringLiteral :: Parser String
     pStringLiteral = Text.Megaparsec.Char.char '\"' *> manyTill L.charLiteral (Text.Megaparsec.Char.char '\"')
 
-pGroupOp :: Parser GroupValueExpr
-pGroupOp = D.dbg "pGroupOp" $ fmap GroupOp $
-        try (GroupCount <$> (keyword "count" >> pGroupValueExpr))
+-- NB: relative "Count" NOT supported
+pGroupOp :: Parser GroupOp
+pGroupOp =
+        try (GroupCount <$> (keyword "count" >> pVarOr pDataExpr))
     <|> try pPositionFoldRelative
     <|> try pPositionFold
 
@@ -169,19 +169,19 @@ pGroupOp = D.dbg "pGroupOp" $ fmap GroupOp $
 pPositionFold :: Parser GroupOp
 pPositionFold = D.dbg "pPositionFold" $ do
     fold <- pFold
-    fieldName <- skipTrailingWhitespace pGroupValueExpr
+    fieldName <- skipTrailingWhitespace (pVarOr pFieldName)
     keyword "of"
-    input <- skipTrailingWhitespace pGroupValueExpr
+    input <- skipTrailingWhitespace (pVarOr pDataExpr)
     return $ PositionFold fold fieldName input
 
 -- Parser of 'Relative'
 pPositionFoldRelative :: Parser GroupOp
 pPositionFoldRelative = do
-    positionFold <- pPositionFold
+    varOrPositionFold <- pVarOr pPositionFold
     keyword "relative"
     keyword "to"
-    relativeTo <- skipTrailingWhitespace pGroupValueExpr
-    return $ Relative (GroupOp positionFold) relativeTo
+    relativeTo <- skipTrailingWhitespace (pVarOr pGroupOp)
+    return $ Relative varOrPositionFold relativeTo
 
 pFold :: Parser PositionFold
 pFold = D.dbg "pFold" $
@@ -190,45 +190,64 @@ pFold = D.dbg "pFold" $
     <|> try (keyword "minimum" >> return Min)
     <|> try (keyword "maximum" >> return Max)
 
-pDataExpr :: Parser GroupValueExpr
-pDataExpr =
-    parens pDataExpr' <|> pDataExpr'
-  where
-    parens p = do
-        void $ Text.Megaparsec.Char.char '('
-        res <- p
-        void $ Text.Megaparsec.Char.char ')'
-        return res
+parens p = do
+    void $ Text.Megaparsec.Char.char '('
+    res <- p
+    void $ Text.Megaparsec.Char.char ')'
+    return res
 
--- A 'DataExpr' will always start with a variable,
+-- A 'DataExpr' will always start with a variable (Source),
 --  followed by zero or more 'Filter' and/or 'GroupBy' operations.
-pDataExpr' :: Parser GroupValueExpr
-pDataExpr' = D.dbg "pDataExpr" $ do
+
+pDataExpr = D.dbg "pDataExpr" $ do
     var <- skipTrailingWhitespace pVar
     dataExprList <- many $ pGroupBy <|> pFilter
-    return $ foldl' (\input filterOrGroup -> DataExpr $ mkDataExpr filterOrGroup input) (Var var) dataExprList
+    return $ foldl' (\input filterOrGroup -> mkDataExpr filterOrGroup input) (Source var) dataExprList
   where
     mkDataExpr (Left filterComp) = Filter filterComp
     mkDataExpr (Right fieldName) = GroupBy fieldName
 
-pFilter :: Parser (Either Comparison GroupValueExpr)
+pFilter :: Parser (Either BoolExpr (VarOr FieldName))
 pFilter = D.dbg "pFilter" $ do
     keyword "where"
     Left <$> pComparison
 
-pGroupBy :: Parser (Either Comparison GroupValueExpr)
+pGroupBy :: Parser (Either BoolExpr (VarOr FieldName))
 pGroupBy = D.dbg "pGroupBy" $ do
     keyword "grouped"
     keyword "by"
-    groupField <- skipTrailingWhitespace pGroupValueExpr
+    groupField <- skipTrailingWhitespace (pVarOr pFieldName)
     return $ Right groupField
 
-pComparison :: Parser Comparison
+pComparison :: Parser BoolExpr
 pComparison = D.dbg "pComparison" $ do
-    lhs <- skipTrailingWhitespace pGroupValueExpr
+    lhs <- skipTrailingWhitespace (pVarOr pValueExpr)
     bComp <- skipTrailingWhitespace pBoolCompare
-    rhs <- skipTrailingWhitespace pGroupValueExpr
+    rhs <- skipTrailingWhitespace (pVarOr pValueExpr)
     return $ Comparison lhs bComp rhs
+
+pAnd :: Parser BoolExpr
+pAnd = D.dbg "pAnd" $ do
+    exprA <- skipTrailingNewline (pVarOr pBoolExpr)
+    keyword "AND"
+    exprB <- skipTrailingWhitespace (pVarOr pBoolExpr)
+    return $ And exprA exprB
+
+pOr :: Parser BoolExpr
+pOr = D.dbg "pAnd" $ do
+    exprA <- skipTrailingNewline (pVarOr pBoolExpr)
+    keyword "OR"
+    exprB <- skipTrailingWhitespace (pVarOr pBoolExpr)
+    return $ Or exprA exprB
+
+-- TODO: correct and/or/not precedence?
+pBoolExpr :: Parser BoolExpr
+pBoolExpr =
+    try pComparison <|> try pNot <|> try pAnd <|> try pOr
+
+pNot :: Parser BoolExpr
+pNot = keyword "NOT" >> skipTrailingWhitespace pBoolExpr
+
 
 -- | Variables start with a lower case letter
 pVar :: Parser Text
@@ -237,24 +256,21 @@ pVar = D.dbg "pVar" $ do
     let lowerFirstChar = C.toLower firstChar
     if firstChar == lowerFirstChar
         then return (toS word)
-        else failParse "Variable name must start with lower case letter" [toS $ lowerFirstChar : remainingChars]
+        else failParse "Variable name must start with lower case letter"
+                [toS $ lowerFirstChar : remainingChars]
 
 pWord :: Parser String
 pWord =
     some Text.Megaparsec.Char.letterChar
 
 -- | Field names start with an upper case letter
-pFieldName :: Parser Literal
-pFieldName = D.dbg "pFieldName" $
-    FieldName <$> pascalCaseWord
-  where
-    pascalCaseWord :: Parser Text
-    pascalCaseWord = do
-        word@(firstChar : remainingChars) <- pWord
-        let upperFirstChar = C.toUpper firstChar
-        if firstChar == upperFirstChar
-            then return (toS word)
-            else failParse "Field name must start with upper case letter" [toS $ upperFirstChar : remainingChars]
+pFieldName :: Parser Text
+pFieldName = D.dbg "pFieldName" $ do
+    word@(firstChar : remainingChars) <- pWord
+    let upperFirstChar = C.toUpper firstChar
+    if firstChar == upperFirstChar
+        then return (toS word)
+        else failParse "Field name must start with upper case letter" [toS $ upperFirstChar : remainingChars]
 
 failParse
     :: Text     -- ^ Error message for user
