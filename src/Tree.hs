@@ -1,92 +1,71 @@
 module Tree
 ( Tree(..)
-, EvalTree
-, mapTermNodeM
-, forTermNodeM
-, collectTermNodes
-, collectTermNodeLabels
-, collectTermNodeTrees
-, drawTree
--- * Re-exports
-, Data.Tree.unfoldTreeM
+, NodeData(..)
+, leaves
 )
 where
 
 import LangPrelude
 import Types
+import qualified Data.List.NonEmpty as NE
 
 
-import qualified Data.Tree
+-- data Tree leaf =
+--       Node (FieldName, FieldValue) [Tree leaf]
+--     | Leaf leaf
 
 data Tree leafLabel =
-      Node (FieldName, FieldValue) [Tree leafLabel]
-    | TermNode (FieldName, FieldValue) leafLabel
+      Node (NodeData [Tree leafLabel])
+    | TermNode (NodeData leafLabel)
         deriving (Eq, Show)
 
-instance Functor Tree where
-    fmap f (Node lab treeList) = Node lab (map (fmap f) treeList)
-    fmap f (TermNode lab leaf) = TermNode lab (f leaf)
+data NodeData a = NodeData (FieldName, FieldValue) a
+    deriving (Eq, Show)
 
-instance Foldable Tree where
-   foldMap f (TermNode _ leaf) = f leaf
-   foldMap f (Node _ nodeList) =
-        foldr (\item result -> foldMap f item `mappend` result) mempty nodeList
-
-type EvalTree = Tree [Position]
-
-forTermNodeM
-    :: Monad m
-    => Tree a
-    -> (Tree a -> m b)
-    -> m (Tree b)
-forTermNodeM = flip mapTermNodeM
-
-mapTermNodeM
-    :: Monad m
-    => (Tree a -> m b)  -- ^ A tree from the root node and to a single 'TermNode'
-    -> Tree a
-    -> m (Tree b)
-mapTermNodeM f tree =
+leaves :: Tree leafLabel -> [leafLabel]
+leaves tree =
     go [] tree
   where
-    go pathAccum (Node lab subTree) =
-        Node lab <$> mapM (go (lab : pathAccum)) subTree
-    go pathAccum (TermNode lab leaf) =
-        let treePath = foldr (\nodeLab tree' -> Node nodeLab [tree']) (TermNode lab leaf) pathAccum
-        in TermNode lab <$> f treePath
+    go accum (Node (NodeData _ subTree)) = concat $ map (go accum) subTree
+    go accum (TermNode (NodeData _ leaf)) = leaf : accum
 
-collectTermNodeTrees
-    :: Tree leafLabel
-    -> [ Tree leafLabel ]
-collectTermNodeTrees = map (uncurry TermNode) . collectTermNodes
+-- instance Functor NodeData where
+--     fmap f (NodeData lab lst) = NodeData lab (NE.map f lst)
 
-collectTermNodeLabels :: Tree a -> [a]
-collectTermNodeLabels = map snd . collectTermNodes
+-- instance Functor Tree where
+--     fmap f (Node nodeData) = Node (fmap (fmap f) nodeData)
+--     fmap f (TermNode nodeData) = TermNode (fmap f nodeData)
 
-collectTermNodes
-    :: Tree leafLabel
-    -> [ ((FieldName, FieldValue), leafLabel) ]
-collectTermNodes tree =
-    go tree
-  where
-    go (Node _ subTree) =
-        concat $ map go subTree
-    go (TermNode lab posList) =
-        [(lab, posList)]
 
-drawTree :: Show leafLabel => Tree [leafLabel] -> String
-drawTree = Data.Tree.drawTree . fmap show . toContainers
 
--- | Used for converting to/from 'Data.Tree.Tree'
-data NodeLabel leafLabel
-    = NodeLab (FieldName, FieldValue)
-    | TermNodeLab (FieldName, FieldValue) leafLabel
-        deriving Show
+-- test =
+--     Node ("Portfolio", "ForeignBonds")
+--         [ Node ("Country", "DK")
+--             [ Node ("Issuer", "I2")
+--                 [ Leaf $ Pos "P7"
+--                 ]
+--             ]
+--         , Node ("Country", "US")
+--             [ Node ("Issuer", "I1")
+--                 [ Leaf $ Pos "P2"
+--                 , Leaf $ Pos "P5"
+--                 ]
+--             , Node ("Issuer", "I3")
+--                 [ Leaf $ Pos "P3"
+--                 ]
+--             , Node ("Issuer", "I6")
+--                 [ Leaf $ Pos "P8"
+--                 ]
+--             ]
+--         , Node ("Country", "GB")
+--             [ Node ("Issuer", "I4")
+--                 [ Leaf $ Pos "P1"
+--                 , Leaf $ Pos "P4"
+--                 ]
+--             , Node ("Issuer", "I5")
+--                 [ Leaf $ Pos "P6"
+--                 ]
+--             ]
+--         ]
 
-toContainers
-    :: Tree [leafLabel]
-    -> Data.Tree.Tree (NodeLabel [leafLabel])
-toContainers (Node nodeLabel subTree) =
-    Data.Tree.Node (NodeLab nodeLabel) (map toContainers subTree)
-toContainers (TermNode nodeLabel leafList) =
-    Data.Tree.Node (TermNodeLab nodeLabel leafList) []
+data Pos = Pos String
