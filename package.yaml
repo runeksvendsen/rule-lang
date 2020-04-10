@@ -63,5 +63,5 @@ tests:
       - hspec
       - hspec-smallcheck
       - hspec-expectations-pretty-diff
-    ghc-options:
-      - -O2
+    # ghc-options:
+    #   - -O2

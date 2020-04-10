@@ -20,7 +20,6 @@ data Result = Result
 -- |
 data ResultStatus
     = RulePassed        -- ^ Passed a rule
-    | RuleWarning       -- ^ (Unused) Warning level for a rule
     | RuleViolated      -- ^ Violated a rule
     | NotConsidered     -- ^ Filtered away (by "when")
     | MissingField FieldName    -- ^ No such field exists (e.g. no such field as "Issuer")
