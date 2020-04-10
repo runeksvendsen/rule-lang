@@ -16,13 +16,15 @@ import Eval.Types
 import Eval.Result
 import Tree
 import Eval.GroupFold                       (getFold)
-import Eval.Common                          (getField)
+-- import Eval.Common                          (getField)
 import Absyn
 
 
 runEvalData :: NonEmpty Position -> DataExpr -> Either Text (EvalTree, [Result])
 runEvalData portfolioPositions expr =
     runEvalM $ eval (initialVarEnv portfolioPositions) expr
+
+type EvalTree = Tree [Position]
 
 eval
     :: Env EvalTree -- ^ let bindings
