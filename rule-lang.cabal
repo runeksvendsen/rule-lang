@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 96e019914a370642adf484584a9af9a5b47a4b07ec423be516d8d28a2b7cfe6b
+-- hash: 4e839d97cef013266c5a6a6097e9249983bd80e8df4f1e8d2312292661cd85a9
 
 name:           rule-lang
 version:        0.1.0.0
@@ -97,4 +97,5 @@ test-suite rule-lang-test
     , tasty
     , tasty-smallcheck
     , text
+    , transformers
   default-language: Haskell2010

@@ -27,35 +27,6 @@ import Tree                                 as Tree
 import Comparison                           as Comparison
 
 
---    rule: (0.0% == 0.0% AND 0.0% == 0.0%) AND a
-input :: RuleExpr
-input = Rule (NotVar
-    (And
-        (NotVar
-            (And (NotVar (Comparison (NotVar (Literal (Percent (fromReal 0.0)))) Eq (NotVar (Literal (Percent (fromReal 0.0))))))
-                 (NotVar (Comparison (NotVar (Literal (Percent (fromReal 0.0)))) Eq (NotVar (Literal (Percent (fromReal 0.0))))))
-            )
-        )
-        (Var "a")
-    ))
-
---    rule: 0.0% == 0.0% AND (0.0% == 0.0% AND a)
-output :: RuleExpr
-output = Rule (NotVar
-    (And
-        (NotVar
-            (Comparison (NotVar (Literal (Percent (fromReal 0.0)))) Eq (NotVar (Literal (Percent (fromReal 0.0)))))
-        )
-        (NotVar
-            (And (NotVar (Comparison (NotVar (Literal (Percent (fromReal 0.0)))) Eq (NotVar (Literal (Percent (fromReal 0.0))))))
-            (Var "a")
-            )
-        )
-    ))
-
-
-
-
 -- | Either a variable reference or an actual expression
 data VarOr a
     = Var Text
@@ -83,21 +54,19 @@ data BoolExpr
     | Not (VarOr BoolExpr)                                          -- ^ logical NOT
         deriving (Eq, Show, Generic)
 
-test = Filter (Not $ Var "lol") (NotVar $ GroupBy (NotVar "Country") (Var "portfolio"))
-
 data DataExpr
     = GroupBy VarOrFieldName (VarOr DataExpr)   -- ^ (groupingField :: Literal FieldName) (input :: DataExpr)
     | Filter BoolExpr (VarOr DataExpr)          -- ^ comparison (input :: DataExpr)
         deriving (Eq, Show, Generic)
 
 data GroupOp
-    = GroupCount (VarOr DataExpr)                               -- (grouping :: DataExpr)
-    | PositionFold PositionFold VarOrFieldName (VarOr DataExpr) -- foldType (fieldName :: FieldName) (input :: DataExpr)
-    | Relative (VarOr GroupOp) VarOrFieldName                   -- (numeratorGroupOp :: DataExpr) (denominatorInput :: DataExpr)
+    -- (grouping :: DataExpr)
+    = GroupCount (VarOr DataExpr)
+    -- (foldType :: PositionFold) (fieldName :: FieldName) (input :: DataExpr) (relative :: Maybe DataExpr)
+    | PositionFold PositionFold VarOrFieldName (VarOr DataExpr) (Maybe (VarOr DataExpr))
         deriving (Eq, Show, Generic)
 
--- [Position] -> 'Literal'
--- Output: 'Number'
+-- [Position] -> 'Number'
 data PositionFold =
       SumOver           -- (+)
     | Average           -- (+ /)
@@ -116,9 +85,10 @@ data VarExpr
         deriving (Eq, Show, Generic)
 
 data RuleExpr
-    = Let VarName VarExpr RuleExpr            -- ^ name rhs scope
-    | Foreach VarOrFieldName (VarOr DataExpr) RuleExpr  -- ^ (fieldName :: FieldName) (dataExpr :: DataExpr) scope
-    | Rule (VarOr BoolExpr)                             -- ^ a condition that must be true
+    = Let VarName VarExpr
+    | Foreach (VarOr DataExpr) (NonEmpty RuleExpr)  -- ^ (input :: DataExpr) scope
+    | If (VarOr BoolExpr) (NonEmpty RuleExpr)
+    | Rule (VarOr BoolExpr)              -- ^ a condition that must be true
         deriving (Eq, Show, Generic)
 
 

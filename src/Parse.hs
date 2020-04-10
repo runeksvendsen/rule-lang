@@ -75,49 +75,56 @@ braces = Text.Megaparsec.between
 
 -- #########
 
-documentParser :: Parser RuleExpr
-documentParser = skipTrailingNewline pRuleExpr <* eof
+documentParser :: Parser (NonEmpty RuleExpr)
+documentParser = some' (skipTrailingNewline pRuleExpr) <* eof
+
+some' :: Parser a -> Parser (NonEmpty a)
+some' p = NE.fromList <$> some p
 
 pRuleExpr :: Parser RuleExpr
 pRuleExpr = debug "pRuleExpr" $
-    try pLet <|> try pForEach <|> try pRule
+    pLet <|> pForEach <|> pIf <|> pRule
 
 pLet :: Parser RuleExpr
 pLet = do
     (varName, groupExpr) <- skipTrailingNewline pLetHeader
-    scope <- pRuleExpr
-    return $ Let varName groupExpr scope
+    return $ Let varName groupExpr
 
+pLetHeader :: Parser (Text, VarExpr)
 pLetHeader = debug "pLetHeader" $ do
     keyword "let"
-    varName <- skipTrailingWhitespace pVar
+    varName <- skipTrailingWhitespace pDefineVar
     keyword "="
     varExpr <- skipTrailingWhitespace pVarExpr
     return (varName, varExpr)
 
--- forEachHeader :: Parser (ValueExpr, ValueExpr)
+pForEach :: Parser RuleExpr
+pForEach = debug "pForEach" $ do
+    dataExpr <- forEachHeader
+    scope <- braces (some' (skipTrailingNewline pRuleExpr))
+    return $ Foreach dataExpr scope
+
+forEachHeader :: Parser (VarOr DataExpr)
 forEachHeader = debug "forEachHeader" $ do
     keyword "for"
-    keyword "each"
-    fieldName <- skipTrailingWhitespace (pVarOr pFieldName)
-    keyword "in"
+    keyword "all"
     -- supports:
     --  (var grouped_by/where x ...)
     --  var grouped_by/where x
     --  var
-    dataExpr <- skipTrailingWhitespace (try (NotVar <$> parens pDataExpr) <|> pVarOr pDataExpr)
-    return (fieldName, dataExpr)
+    skipTrailingWhitespace (try (NotVar <$> parens pDataExpr) <|> pVarOr pDataExpr)
 
-pForEach :: Parser RuleExpr
-pForEach = debug "pForEach" $ do
-    (fieldNameExpr, dataExpr) <- forEachHeader
-    scope <- braces pRuleExpr
-    return $ Foreach fieldNameExpr dataExpr scope
+pIf :: Parser RuleExpr
+pIf = debug "pIf" $ do
+    keyword "if"
+    varOrBoolExpr <- skipTrailingWhitespace (pVarOr pBoolExpr)
+    scope <- braces (some' (skipTrailingNewline pRuleExpr))
+    return $ If varOrBoolExpr scope
 
 pRule :: Parser RuleExpr
 pRule = debug "pRule" $ do
-    debug "rule:" $ keyword "rule:"
-    Rule <$> (pVarOr $ pBoolExpr sc)
+    keyword "require"
+    Rule <$> (pVarOr $ pBoolExpr)
 
 pBoolCompare :: Parser BoolCompare
 pBoolCompare = debug "pBoolCompare" $ do
@@ -129,9 +136,9 @@ pBoolCompare = debug "pBoolCompare" $ do
 
 pVarExpr :: Parser VarExpr
 pVarExpr = debug "pVarExpr" $
-        try (BoolExpr <$> pBoolExpr sc)
+        try (DataExpr <$> pDataExpr)
+    <|> try (BoolExpr <$> pBoolExpr)
     <|> try (ValueExpr <$> pValueExpr)
-    <|> try (DataExpr <$> pDataExpr)
 
 -- TODO: document reserved keywords, e.g. "sum" or "average".
 pValueExpr :: Parser ValueExpr
@@ -142,32 +149,24 @@ pValueExpr = debug "pValueExpr" $
 -- 'Var' is last because otherwise e.g. "sum" is parsed as
 --   a variable instead of as a 'PositionFold'
 pVarOr :: Parser a -> Parser (VarOr a)
-pVarOr pA = try (NotVar <$> pA) <|> try (Var <$> pVar)
+pVarOr pA = try (NotVar <$> pA) <|> try (Var <$> pVarReferece)
 
--- NB: relative "Count" NOT supported
 pGroupOp :: Parser GroupOp
-pGroupOp = debug "pGroupOp" $
-        try (GroupCount <$> (keyword "count" >> pVarOr pDataExpr))
-    <|> try pPositionFoldRelative
-    <|> try pPositionFold
+pGroupOp = debug "pCountOrFold" $
+    (GroupCount <$> (keyword "count" >> pVarOr pDataExpr))
+    <|> pPositionFold
 
--- Parser of 'PositionFold' and 'Relative'
 pPositionFold :: Parser GroupOp
 pPositionFold = debug "pPositionFold" $ do
     fold <- pFold
     fieldName <- skipTrailingWhitespace (pVarOr pFieldName)
     keyword "of"
     input <- skipTrailingWhitespace (pVarOr pDataExpr)
-    return $ PositionFold fold fieldName input
-
--- Parser of 'Relative'
-pPositionFoldRelative :: Parser GroupOp
-pPositionFoldRelative = do
-    varOrPositionFold <- skipTrailingWhitespace (pVarOr pPositionFold)
-    keyword "relative"
-    keyword "to"
-    relativeTo <- skipTrailingWhitespace (pVarOr pFieldName)
-    return $ Relative varOrPositionFold relativeTo
+    relativeM <- optional $ do
+        keyword "relative"
+        keyword "to"
+        skipTrailingWhitespace (pVarOr pDataExpr)
+    return $ PositionFold fold fieldName input relativeM
 
 pFold :: Parser PositionFold
 pFold = debug "pFold" $
@@ -180,7 +179,7 @@ pFold = debug "pFold" $
 --  followed by zero or more 'Filter' and/or 'GroupBy' operations.
 pDataExpr :: Parser DataExpr
 pDataExpr = debug "pDataExpr" $ do
-    var <- skipTrailingWhitespace pVar
+    var <- skipTrailingWhitespace pVarReferece
     dataExprList <- some $ pGroupBy <|> pFilter
     let initialDataExpr = mkDataExpr (head dataExprList) (Var var)
     return $ foldl' (\accum filterOrGroup -> mkDataExpr filterOrGroup (NotVar accum)) initialDataExpr (tail dataExprList)
@@ -192,7 +191,7 @@ pDataExpr = debug "pDataExpr" $ do
 pFilter :: Parser (Either BoolExpr (VarOr FieldName))
 pFilter = debug "pFilter" $ do
     keyword "where"
-    Left <$> pComparison
+    Left <$> skipTrailingWhitespace (parens pBoolExpr)
 
 pGroupBy :: Parser (Either BoolExpr (VarOr Text))
 pGroupBy = debug "pGroupBy" $ do
@@ -209,47 +208,40 @@ pComparison = debug "pComparison" $ do
     return $ Comparison lhs bComp rhs
 
 -- TODO: correct and/or/not precedence?
-pBoolExpr :: Parser () -> Parser BoolExpr
-pBoolExpr whitespaceConsumer = debug "pBoolExpr" $ do
-    res <- pBoolExpr'
-    case res of
-        -- refuse to parse a naked Var
-        Var _ -> failure Nothing (Set.fromList []) -- TODO: message here?
-        NotVar notVar -> return notVar
+pBoolExpr :: Parser BoolExpr
+pBoolExpr = debug "pBoolExpr" $ do
+    pNot <|> try pAnd <|> try pOr <|> try pComparison
   where
-    pBoolExpr' = try (NotVar <$> pNot) <|> try pComparisonAndOr
-    pComparisonAndOr = do
-        comparisonOrVar <- skipTrailingWhitespace (pVarOr pComparison)
-        extraM <- optional $ try pAnd <|> try pOr
-        case extraM of
-            Nothing -> return comparisonOrVar
-            Just mkAndOr -> return $ mkAndOr comparisonOrVar
-    pAnd = do
-        keyword "AND"
-        exprB <- pBoolExpr'
-        whitespaceConsumer
-        return $ \exprOrVar -> NotVar $ And exprOrVar exprB
-    pOr = do
-        keyword "OR"
-        exprB <- pBoolExpr'
-        whitespaceConsumer
-        return $ \exprOrVar -> NotVar $ Or exprOrVar exprB
     pNot :: Parser BoolExpr
     pNot = debug "pNot" $ do
         keyword "NOT"
-        boolExpr <- pBoolExpr'
-        whitespaceConsumer
+        boolExpr <- skipTrailingWhitespace $ pVarOr pBoolExpr
         return (Not boolExpr)
+    infixParens word mk = parens $ do
+        exprA <- skipTrailingWhitespace (pVarOr pBoolExpr)
+        keyword word
+        exprB <- skipTrailingWhitespace (pVarOr pBoolExpr)
+        return $ mk exprA exprB
+    pAnd = debug "pAnd" $ infixParens "AND" And
+    pOr = debug "pOr" $ infixParens "OR" Or
 
--- | Variables start with a lower case letter
-pVar :: Parser Text
-pVar = do
-    word@(firstChar : remainingChars) <- pWord
+-- | Variable name defined through a let-binding (must start with lowercase letter)
+pDefineVar :: Parser Text
+pDefineVar = do
+    firstChar : remainingChars <- toS <$> pVarReferece
     let lowerFirstChar = C.toLower firstChar
+        word = firstChar : remainingChars
     if firstChar == lowerFirstChar
         then return (toS word)
         else failParse "Variable name must start with lower case letter"
                 [toS $ lowerFirstChar : remainingChars]
+
+-- | A reference to a variable name (no restriction on start letter case)
+pVarReferece :: Parser Text
+pVarReferece = do
+    firstChar <- Text.Megaparsec.Char.letterChar
+    remainingChars <- many Text.Megaparsec.Char.alphaNumChar
+    return (toS $ firstChar : remainingChars)
 
 pWord :: Parser String
 pWord =

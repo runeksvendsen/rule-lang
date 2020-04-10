@@ -55,6 +55,7 @@ tests:
       - rule-lang
       - megaparsec
       - smallcheck
+      - transformers
       - tasty
       - tasty-smallcheck
       - text
