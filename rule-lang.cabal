@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a53c448d8c8b07969824eb49e1d6a21e7081b1d3dade3c961acf39a62b70e588
+-- hash: 35ceaa27eed4fb1a50a41f376aa4d46800cd3c3e6d15ac9e41b913913b3d5b8d
 
 name:           rule-lang
 version:        0.1.0.0
@@ -25,6 +25,7 @@ library
       Absyn
       Comparison
       Eval.Bool
+      Eval.Common
       Eval.DataExpr
       Eval.GroupFold
       Eval.Grouping

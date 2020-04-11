@@ -64,6 +64,8 @@ data GroupOp
     = GroupCount (VarOr DataExpr)
     -- (foldType :: PositionFold) (fieldName :: FieldName) (input :: DataExpr) (relative :: Maybe DataExpr)
     | PositionFold PositionFold VarOrFieldName (VarOr DataExpr) (Maybe (VarOr DataExpr))
+    -- NB: does not support a relative of a relative, e.g.:
+    --  "sum Value of x1 relative to x2 relative to (sum Value of y1 relative to y2)"
         deriving (Eq, Show, Generic)
 
 -- [Position] -> 'Number'

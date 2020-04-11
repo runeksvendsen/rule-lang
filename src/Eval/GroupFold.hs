@@ -6,29 +6,20 @@ where
 import           LangPrelude
 import           Absyn
 import           Types
-import           Eval.Result
--- import           Eval.Monad
--- import           Eval.Common                        (getField)
-
-import           Data.List                          (foldl')
-import qualified Data.Aeson                         as Json
 
 
-getFold :: PositionFold -> FieldName -> [Position] -> EvalM Number
+getFold :: PositionFold -> FieldName -> [Position] -> Number
 getFold positionFold fieldName =
-    fmap (fromReal . foldFun) . getFields
+    fromReal . foldFunction positionFold . map getNumber
   where
-    foldFun = foldFunction positionFold
-    getFields = fmap catMaybes . mapM getNumber
     getNumber pos = do
-        resM <- getField fieldName pos
+        let resM = lookup fieldName pos
         case resM of
-            Just (Number num) ->
-                return (Just num)
+            Just (Number num) -> num
             Just fieldValue -> do
-                logResult (FieldTypeError positionFold fieldName fieldValue) (nonEmpty pos)
-                return Nothing
-            Nothing -> return Nothing
+                error $ "Type mismatch. Expected Number found " ++ show fieldValue
+            Nothing ->
+                error $ "Field " ++ show fieldName ++ " not found for position " ++ show pos
 
 foldFunction
     :: (Fractional a, Ord a, Foldable t)

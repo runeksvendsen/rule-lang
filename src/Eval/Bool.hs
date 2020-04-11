@@ -2,93 +2,155 @@ module Eval.Bool where
 
 import LangPrelude
 import Absyn
-import Tree
 import Eval.Types
--- TREE
-import qualified Data.List.NonEmpty as NE
+import Eval.Common
+import qualified Comparison
+import qualified Eval.GroupFold
+import qualified Eval.DataExpr
+import qualified Eval.Grouping
 
 
-eval :: Env VarExpr         -- Initial variable environment
-     -> NonEmpty RuleExpr   -- Rule expression
-     -> Bool  -- Success/failure (True/False)
+-- The result of evaluating a 'VarExpr'
+data LiteralOrTree
+    = EvalLiteral Literal               -- ValueExpr/BoolExpr
+    | EvalTree Eval.DataExpr.EvalTree   -- DataExpr
+        deriving (Eq, Show)
+
+eval :: Env LiteralOrTree   -- Evaluated variable environment
+     -> NonEmpty RuleExpr   -- Rule
+     -> Bool                -- Success/failure (True/False)
 eval initialEnv ruleExprs' =
     snd $ foldl' go (initialEnv, True) ruleExprs'
   where
-    go (env, result) (Let varName varExpr) =
-        let newEnv = insert env varName varExpr
-        in (newEnv, result)
-    go (env, result) (Foreach varOrDataExpr ruleExprs) =
-        let dataExpr = either error id (fromVarOr DataExpr env varOrDataExpr)
-        -- insert into varEnv for each
-        in (env, result && eval env ruleExprs)
-    go (env, result) (If varOrBoolExpr ruleExprs) =
-        undefined
-    go (env, result) (Rule varOrBoolExpr) =
-        undefined
+    go (env, success) (Let varName varExpr) =
+        let newEnv = insert env varName (evalVarExpr env varExpr)
+        in (newEnv, success)
+    go (env, success) (Foreach varOrDataExpr ruleExprs) =
+        let envTree = accumMap (\env' tree (fieldName, _) -> insert env' fieldName (EvalTree tree))
+                               (\_ -> id)
+                               env
+                               (getTree env varOrDataExpr)
+            results = map (\env' -> eval env' ruleExprs) (termNodes envTree)
+        in (env, all (== True) (success : results))
+    go (env, success) (If varOrBoolExpr ruleExprs) =
+        if getBool env varOrBoolExpr
+            then (env, eval env ruleExprs && success)
+            else (env, success)
+    go (env, success) (Rule varOrBoolExpr) =
+        (env, getBool env varOrBoolExpr && success)
 
-fromVarOr :: (a -> VarExpr) -> Env VarExpr -> VarOr a -> Either String VarExpr
-fromVarOr _ env (Var varName) =
-    maybe (Left $ "Variable '" ++ toS varName ++ "' not found")
-          Right
-          (lookup varName env)
-fromVarOr f _ (NotVar notVar) =
-    Right (f notVar)
+evalDataExpr
+    :: Env LiteralOrTree
+    -> DataExpr
+    -> Tree [Position]
+evalDataExpr env dataExpr =
+    case dataExpr of
+        GroupBy varOrFieldName varOrDataExpr ->
+            let tree = getTree env varOrDataExpr
+                fieldName = getFieldName env varOrFieldName
+            in Eval.Grouping.addGrouping fieldName tree
+        Filter boolExpr varOrDataExpr ->
+            undefined
+  where
+    evalPosComparison :: FieldName -> BoolCompare -> FieldValue -> Position -> Bool
+    evalPosComparison fieldName bCompare fieldValue pos =
+        let fCompare = comparator bCompare
+        in lookup' fieldName pos `fCompare` fieldValue
 
+evalVarExpr
+    :: Env LiteralOrTree
+    -> VarExpr
+    -> LiteralOrTree
+evalVarExpr env varExpr =
+    case varExpr of
+        ValueExpr valueExpr -> EvalLiteral $ evalValueExpr env valueExpr
+        BoolExpr boolExpr -> EvalLiteral $ FieldValue $ Bool $ evalBoolExpr env boolExpr
+        DataExpr dataExpr -> EvalTree $ evalDataExpr env dataExpr
 
-accumMap
-    -- Accumulating function
-    -- Applied to the contents of a Node
-    :: (state -> Tree a -> (FieldName, FieldValue) -> state)
-    -- Mapping function
-    -- Applied to the contents of a TermNode
-    -> (state -> a -> b)
-    -- Initial state
-    -> state
-    -- Input tree
-    -> Tree a
-    -- Output tree
-    -> Tree b
-accumMap f mkRes accum tree@(Node (NodeData label subTree)) =
-    let newAccum = f accum tree label
-        newSubTree = map (accumMap f mkRes newAccum) subTree
-    in Node (NodeData label newSubTree)
-accumMap f mkRes accum tree@(TermNode (NodeData label a)) =
-    let newAccum = f accum tree label
-    in TermNode (NodeData label (mkRes newAccum a))
+evalValueExpr
+    :: Env LiteralOrTree
+    -> ValueExpr
+    -> Literal
+evalValueExpr env valueExpr =
+    case valueExpr of
+        Literal literal -> literal
+        GroupOp groupOp -> evalGroupOp env groupOp
 
-testResult = accumMap
-    (\state tree label -> state + sum (leaves tree))
-    (,)
-    0
+evalGroupOp :: Env LiteralOrTree -> GroupOp -> Literal
+evalGroupOp env groupOp =
+    case groupOp of
+        GroupCount varOrDataExpr ->
+            -- TODO: incorrect count of trees with zero positions in a 'TermNode' (empty groups)
+            let positions = termNodes (getTree env varOrDataExpr)
+            in FieldValue . Number . fromIntegral $ length positions
+        PositionFold positionFold varOrFieldName varOrDataExpr maybeVarOrDataExpr ->
+            let fieldName = getFieldName env varOrFieldName
+                doFold = evalPositionFold env positionFold fieldName
+                baseNumber = doFold varOrDataExpr
+                -- NB: the below will return 'Infinity' if the relative 'DataExpr'
+                --  is the empty tree, and an exception will be thrown if this is
+                --  compared to another number (in a 'Comparison')
+                mkRelativeNumber relativeVarOrDataExpr = Percent $ baseNumber / doFold relativeVarOrDataExpr
+            in maybe (FieldValue $ Number baseNumber) mkRelativeNumber maybeVarOrDataExpr
 
-em = ("", "")
+evalPositionFold :: Env LiteralOrTree -> PositionFold -> FieldName -> VarOr DataExpr -> Number
+evalPositionFold env positionFold fieldName varOrDataExpr =
+    let foldFunction = Eval.GroupFold.getFold positionFold fieldName
+        tree = getTree env varOrDataExpr
+    in foldFunction (concat $ termNodes tree)
 
-testTree =
-    Node $ NodeData em                          -- sum: 3+5+9+17+13 = 47
-        [ Node $ NodeData em                    -- sum: 3+5         = 8
-            [ TermNode $ NodeData em 3
-            , TermNode $ NodeData em 5
-            ]
-        , Node $ NodeData em                    -- sum: 9+17        = 26
-            [ TermNode $ NodeData em 9
-            , TermNode $ NodeData em 17
-            ]
-        , Node $ NodeData em                    -- sum: 13          = 13
-            [ TermNode $ NodeData em 13
-            ]
-        ]
+evalBoolExpr
+    :: Env LiteralOrTree
+    -> BoolExpr
+    -> Bool
+evalBoolExpr env boolExpr =
+    case boolExpr of
+        Comparison varOrValueExpr1 boolCompare varOrValueExpr2 ->
+            let compareFun = Comparison.comparator boolCompare
+            -- NB: will throw an exception if two incompatible literals are compared
+            --  for order (e.g. 'Percent' and 'Number').
+            -- TODO: if two incompatible literals are compared for equality then it will
+            --  just return 'False' (don't use 'Eq' for equality comparison)
+            in getLiteral env varOrValueExpr1 `compareFun` getLiteral env varOrValueExpr2
+        And varOrBoolExpr1 varOrBoolExpr2 ->
+            getBool env varOrBoolExpr1 && getBool env varOrBoolExpr2
+        Or varOrBoolExpr1 varOrBoolExpr2 ->
+            getBool env varOrBoolExpr1 || getBool env varOrBoolExpr2
+        Not varOrBoolExpr ->
+            not $ getBool env varOrBoolExpr
 
-lol =
-    Node $ NodeData em                          -- sum: 3+5+9+17+13 = 47
-        [ Node $ NodeData em                    -- sum: 3+5         = 8
-            [ TermNode (NodeData em (58,3))
-            , TermNode (NodeData em (60,5))
-            ]
-        , Node $ NodeData em                    -- sum: 9+17        = 26
-            [ TermNode (NodeData em (82,9))
-            , TermNode (NodeData em (90,17))
-            ]
-        , Node $ NodeData em                    -- sum: 13          = 13
-            [ TermNode (NodeData em (73,13))
-            ]
-        ]
+-- #####################
+-- ###### Helpers ######
+-- #####################
+
+getTree :: Env LiteralOrTree -> VarOr DataExpr -> Tree [Position]
+getTree env (NotVar dataExpr) = evalDataExpr env dataExpr
+getTree env (Var varName) = fromLitOrTree $ lookup' varName env
+  where
+    fromLitOrTree (EvalTree tree) = tree
+    fromLitOrTree other = typeError "Grouping" other
+
+getBool :: Env LiteralOrTree -> VarOr BoolExpr -> Bool
+getBool env (NotVar boolExpr) = evalBoolExpr env boolExpr
+getBool env (Var varName) = fromLitOrTree $ lookup' varName env
+  where
+    fromLitOrTree (EvalLiteral (FieldValue (Bool boolExpr))) = boolExpr
+    fromLitOrTree other = typeError "Boolean" other
+
+getFieldName :: Env LiteralOrTree -> VarOr FieldName -> FieldName
+getFieldName _ (NotVar fieldName) = fieldName
+getFieldName env (Var varName) = fromLitOrTree $ lookup' varName env
+  where
+    fromLitOrTree (EvalLiteral (FieldName fieldName)) = fieldName
+    fromLitOrTree other = typeError "FieldName" other
+
+getLiteral :: Env LiteralOrTree -> VarOr ValueExpr -> Literal
+getLiteral env (NotVar valueExpr) = evalValueExpr env valueExpr
+getLiteral env (Var varName) = fromLitOrTree $ lookup' varName env
+  where
+    fromLitOrTree (EvalLiteral literal) = literal
+    fromLitOrTree other = typeError "FieldName" other
+
+typeError :: String -> LiteralOrTree -> a
+typeError expectedType foundValue =
+    error $ "Type error. Expected '" ++ expectedType ++ "' found " ++ show foundValue

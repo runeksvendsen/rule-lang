@@ -1,7 +1,9 @@
 module Tree
 ( Tree(..)
 , NodeData(..)
-, leaves
+, EvalTree
+, accumMap
+, termNodes
 )
 where
 
@@ -9,6 +11,8 @@ import LangPrelude
 import Types
 import qualified Data.List.NonEmpty as NE
 
+
+type EvalTree = Tree [Position]
 
 -- data Tree leaf =
 --       Node (FieldName, FieldValue) [Tree leaf]
@@ -22,50 +26,69 @@ data Tree leafLabel =
 data NodeData a = NodeData (FieldName, FieldValue) a
     deriving (Eq, Show)
 
-leaves :: Tree leafLabel -> [leafLabel]
-leaves tree =
+-- Collect all term nodes
+termNodes :: Tree leafLabel -> [leafLabel]
+termNodes tree =
     go [] tree
   where
     go accum (Node (NodeData _ subTree)) = concat $ map (go accum) subTree
     go accum (TermNode (NodeData _ leaf)) = leaf : accum
 
--- instance Functor NodeData where
---     fmap f (NodeData lab lst) = NodeData lab (NE.map f lst)
 
--- instance Functor Tree where
---     fmap f (Node nodeData) = Node (fmap (fmap f) nodeData)
---     fmap f (TermNode nodeData) = TermNode (fmap f nodeData)
+accumMap
+    -- Accumulating function
+    -- Applied to the contents of a Node
+    :: (state -> Tree a -> (FieldName, FieldValue) -> state)
+    -- Mapping function
+    -- Applied to the contents of a TermNode
+    -> (a -> state -> b)
+    -- Initial state
+    -> state
+    -- Input tree
+    -> Tree a
+    -- Output tree
+    -> Tree b
+accumMap f mkRes accum tree@(Node (NodeData label subTree)) =
+    let newAccum = f accum tree label
+        newSubTree = map (accumMap f mkRes newAccum) subTree
+    in Node (NodeData label newSubTree)
+accumMap f mkRes accum tree@(TermNode (NodeData label a)) =
+    let newAccum = f accum tree label
+    in TermNode (NodeData label (mkRes a newAccum))
 
+testResult = accumMap
+    (\state tree label -> state + sum (termNodes tree))
+    (,)
+    0
 
+em = ("", "")
 
--- test =
---     Node ("Portfolio", "ForeignBonds")
---         [ Node ("Country", "DK")
---             [ Node ("Issuer", "I2")
---                 [ Leaf $ Pos "P7"
---                 ]
---             ]
---         , Node ("Country", "US")
---             [ Node ("Issuer", "I1")
---                 [ Leaf $ Pos "P2"
---                 , Leaf $ Pos "P5"
---                 ]
---             , Node ("Issuer", "I3")
---                 [ Leaf $ Pos "P3"
---                 ]
---             , Node ("Issuer", "I6")
---                 [ Leaf $ Pos "P8"
---                 ]
---             ]
---         , Node ("Country", "GB")
---             [ Node ("Issuer", "I4")
---                 [ Leaf $ Pos "P1"
---                 , Leaf $ Pos "P4"
---                 ]
---             , Node ("Issuer", "I5")
---                 [ Leaf $ Pos "P6"
---                 ]
---             ]
---         ]
+testTree =
+    Node $ NodeData em                          -- sum: 3+5+9+17+13 = 47
+        [ Node $ NodeData em                    -- sum: 3+5         = 8
+            [ TermNode $ NodeData em 3
+            , TermNode $ NodeData em 5
+            ]
+        , Node $ NodeData em                    -- sum: 9+17        = 26
+            [ TermNode $ NodeData em 9
+            , TermNode $ NodeData em 17
+            ]
+        , Node $ NodeData em                    -- sum: 13          = 13
+            [ TermNode $ NodeData em 13
+            ]
+        ]
 
-data Pos = Pos String
+lol =
+    Node $ NodeData em                          -- sum: 3+5+9+17+13 = 47
+        [ Node $ NodeData em                    -- sum: 3+5         = 8
+            [ TermNode (NodeData em (58,3))
+            , TermNode (NodeData em (60,5))
+            ]
+        , Node $ NodeData em                    -- sum: 9+17        = 26
+            [ TermNode (NodeData em (82,9))
+            , TermNode (NodeData em (90,17))
+            ]
+        , Node $ NodeData em                    -- sum: 13          = 13
+            [ TermNode (NodeData em (73,13))
+            ]
+        ]
