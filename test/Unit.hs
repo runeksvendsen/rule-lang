@@ -25,8 +25,8 @@ mkTest
 mkTest (name, code) =
     let prop = Hedgehog.property $ do
             absyn <- parse' code
-            let prettyPrinted = (T.lines $ Pretty.pp "   " absyn)
-            Hedgehog.diff prettyPrinted (==) (T.lines code)
+            let prettyPrinted = T.lines $ Pretty.pp "   " absyn
+            Hedgehog.diff (map T.stripEnd prettyPrinted) (==) (map T.stripEnd $ T.lines code)
     in (name, prop)
   where
     parse' input =
