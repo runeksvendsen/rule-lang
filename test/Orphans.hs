@@ -12,7 +12,6 @@ import qualified Data.List.NonEmpty as NE
 import Test.SmallCheck.Series
 import qualified Test.SmallCheck.Series as SS
 import qualified Data.Text                        as T
-import Control.Monad.Trans.Class (lift)
 -- DEBUG
 import Debug.Trace
 
@@ -59,18 +58,19 @@ camelCaseText = do
 instance (Monad m, Serial m a) => Serial m (Absyn.VarOr a) where
     series = varOr SS.series
 
+varOr :: Monad m => Series m a -> Series m (Absyn.VarOr a)
 varOr ss =
     (Absyn.Var <$> varName)
         \/ (Absyn.NotVar <$> ss)
 
 instance Monad m => Serial m Absyn.RuleExpr where
     series =
-        let ruleExprSeries = decDepth SS.series
-            nonEmptyRule = oneNonEmpty ruleExprSeries -- \/ twoNonEmpty ruleExprSeries
+        let ruleExprSeries = SS.series
+            nonEmptyRule = lengthTwoList ruleExprSeries
         in
         (Absyn.Let <$> varName <*> SS.series)
             -- self-recursive
-            \/ (Absyn.Foreach <$> SS.series <*> nonEmptyRule)
+            \/ (Absyn.Forall <$> SS.series <*> nonEmptyRule)
             -- self-recursive
             \/ (Absyn.If <$> SS.series <*> nonEmptyRule)
             \/ (Absyn.Rule <$> SS.series)
@@ -131,23 +131,13 @@ instance Monad m => Serial m Absyn.FieldValue where
             \/ (Absyn.Bool <$> return False)
 
 instance Monad m => Serial m Absyn.Number where
-    series = return $ Absyn.fromReal 1.0
+    series = return $ Absyn.fromReal (1.0 :: Double)
 
 instance Monad m => Serial m (NE.NonEmpty Absyn.RuleExpr) where
     series = NE.fromList <$> nonEmptyList
 
-nonEmpty :: Monad m => Series m a -> Series m (NE.NonEmpty a)
-nonEmpty series = do
-    depth <- getDepth
-    NE.fromList <$> lift (listM depth series)
-
-oneNonEmpty :: Monad m => Series m a -> Series m (NE.NonEmpty a)
-oneNonEmpty series = do
-    item <- series
-    return $ NE.fromList [item]
-
-twoNonEmpty :: Monad m => Series m a -> Series m (NE.NonEmpty a)
-twoNonEmpty series = do
-    first <- series
-    next <- decDepth series
-    return $ NE.fromList $ first : [next]
+lengthTwoList :: Monad m => Series m a -> Series m [a]
+lengthTwoList series' = do
+    first <- decDepth series'
+    next <- decDepth $ decDepth series'
+    return [] \/ return [first] \/ return (first : [next])

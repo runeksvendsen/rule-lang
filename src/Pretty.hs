@@ -18,8 +18,8 @@ pp indentation exprList =
     go :: Word -> RuleExpr -> [(Word, Text)] -> [(Word, Text)]
     go level (Let name rhs) accum =
         (level, "let " <> (name :: Text) <> " = " <> ppVarExpr rhs) : accum
-    go level (Foreach dataExpr scope) accum =
-        (level, "for all " <> ppVarOr ppDataExpr dataExpr <> " {")
+    go level (Forall dataExpr scope) accum =
+        (level, "forall " <> ppVarOr ppDataExpr dataExpr <> " {")
         : foldr (go (level+1)) [] scope ++ [(level, "}")] ++ accum
     go level (If boolExpr scope) accum =
         (level, T.unwords ["if", ppVarOr ppBoolExpr boolExpr, "{"])
@@ -86,13 +86,13 @@ ppComparison :: VarOr ValueExpr -> BoolCompare -> VarOr ValueExpr -> Text
 ppComparison e1 bCompare e2 =
     T.unwords
         [ ppVarOr ppValueExpr e1
-        , toS $ fromMaybe (error $ "BUG: 'valueToString': " ++ show bCompare) $
+        , fromMaybe (error $ "BUG: 'valueToString': " ++ show bCompare) $
             Data.List.lookup bCompare valueToString
         , ppVarOr ppValueExpr e2
         ]
 
 ppFieldName :: Text -> Text
-ppFieldName text = text
+ppFieldName text = "." <> text
 
 ppLiteral :: Literal -> Text
 ppLiteral (Percent num) = ppNumber num <> "%"
@@ -107,10 +107,9 @@ ppFieldValue (Bool False) = "false"
 
 ppNumber :: Number -> Text
 ppNumber num =
-    show' (realToFrac num :: Double)
-
-
-
+    let numStr = show' (realToFrac num :: Double)
+    -- Remove (optional) trailing ".0"
+    in fromMaybe numStr $ T.stripSuffix ".0" numStr
 
 -- ######### Helpers
 

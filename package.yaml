@@ -63,5 +63,7 @@ tests:
       - hspec
       - hspec-smallcheck
       - hspec-expectations-pretty-diff
-    ghc-options:
-      - -O2
+      - neat-interpolation
+      - hedgehog
+    # ghc-options:
+    #   - -O2

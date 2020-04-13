@@ -25,7 +25,8 @@ data BoolCompare
     | GtEq
         deriving (Eq, Show, Read, Generic)
 
-valueToString :: [(BoolCompare, String)]
+-- | Used by pretty-printer
+valueToString :: [(BoolCompare, Text)]
 valueToString =
     [ (Eq   , "==")
     , (NEq  , "!=")
@@ -35,7 +36,8 @@ valueToString =
     , (GtEq , ">=")
     ]
 
-stringToValue :: [(String, BoolCompare)]
+-- | Used by parser
+stringToValue :: [(Text, BoolCompare)]
 stringToValue =
     map swap valueToString
   where

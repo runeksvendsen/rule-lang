@@ -27,8 +27,9 @@ printParse absyn =
     let prettyPrint = Pretty.pp "  "
         prettyPrinted = prettyPrint absyn
         parse = Parse.parse Parse.documentParser ""
-        debugTrace str = id
-    in case T.unpack ("\n" <> prettyPrinted) `debugTrace` parse prettyPrinted of
+        debugOn pp' = T.unpack ("\n" <> pp') `trace` pp'
+        debugOff = id
+    in case parse (debugOff prettyPrinted) of
         Left e ->
             Left $ T.unpack $ T.unlines
                 [ "this fails to parse:"

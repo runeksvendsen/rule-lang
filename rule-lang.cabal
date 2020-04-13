@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4e839d97cef013266c5a6a6097e9249983bd80e8df4f1e8d2312292661cd85a9
+-- hash: 99c5eb78769b1ad66042910706c75f8520796fc1750f5765025f40c770684361
 
 name:           rule-lang
 version:        0.1.0.0
@@ -24,12 +24,7 @@ library
   exposed-modules:
       Absyn
       Comparison
-      Eval.Common
-      Eval.GroupFold
-      Eval.Grouping
-      Eval.Monad
-      Eval.Result
-      Eval.Types
+      Eval
       LangPrelude
       Parse
       Pretty
@@ -81,17 +76,20 @@ test-suite rule-lang-test
   other-modules:
       Orphans
       Spec.Parse
+      Unit
       Paths_rule_lang
   hs-source-dirs:
       test
   default-extensions: OverloadedStrings StandaloneDeriving DeriveGeneric NoImplicitPrelude FlexibleContexts
-  ghc-options: -Wall -O2
+  ghc-options: -Wall
   build-depends:
       base >=4.7 && <5
+    , hedgehog
     , hspec
     , hspec-expectations-pretty-diff
     , hspec-smallcheck
     , megaparsec
+    , neat-interpolation
     , rule-lang
     , smallcheck
     , tasty

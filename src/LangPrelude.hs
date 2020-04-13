@@ -15,6 +15,7 @@ module LangPrelude
 , module Printf
 , module Hashable
 , module Void
+, module List
 )
 where
 
@@ -32,6 +33,8 @@ import           GHC.Generics             as Generic  (Generic)
 import qualified Data.Aeson               as Json
 import qualified Data.Text                as T
 import           Data.Void                as Void
+import           Data.List                as List     (foldl')
+import qualified Data.List.NonEmpty       as NE
 
 
 type Map = HashMap
@@ -53,6 +56,9 @@ insert env key value = M.insert key value env
 nonEmpty :: a -> NonEmpty a
 nonEmpty item = item :| []
 
+neConcat :: NonEmpty (NonEmpty a) -> NonEmpty a
+neConcat = NE.fromList . concat . fmap NE.toList
+
 consMaybeNE :: a -> Maybe (NonEmpty a) -> Maybe (NonEmpty a)
 consMaybeNE item Nothing     = Just (item :| [])
 consMaybeNE item (Just list) = Just (item <| list)
@@ -73,7 +79,6 @@ showValue (Json.String txt) = txt
 showValue (Json.Number num) = T.pack $ printf "%f" (realToFrac num :: Double)
 showValue (Json.Bool b) = if b then "true" else "false"
 showValue Json.Null = "(null)"
-
 
 neText :: Text -> NonEmpty Char
 neText = fromList . T.unpack

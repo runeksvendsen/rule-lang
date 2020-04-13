@@ -17,25 +17,21 @@ module Absyn
 , fromReal
   -- * Re-exports
 , module Comparison
-, module Tree
 )
 where
 
 import LangPrelude
 import Types
-import Tree                                 as Tree
 import Comparison                           as Comparison
 
 
--- | Either a variable reference or an actual expression
+-- | Either a variable reference (of type 'a') or an actual expression
 data VarOr a
     = Var Text
     | NotVar a
     deriving (Eq, Show, Generic)
 
--- | Literals are expressions that cannot be evaluated any further.
--- NB: 'ValueExpr'/'BoolExpr' can be evaluated to all values of type 'Literal' except 'FieldName'.
--- There is no expression that evaluates to a 'FieldName'.
+-- | The result of evaluating a 'ValueExpr'
 data Literal
     = Percent Number
     | FieldName Text            -- the name of a field in a Position
@@ -51,19 +47,21 @@ data BoolExpr
     = Comparison (VarOr ValueExpr) BoolCompare (VarOr ValueExpr)    -- ^ compare two things
     | And (VarOr BoolExpr) (VarOr BoolExpr)                         -- ^ logical AND
     | Or (VarOr BoolExpr) (VarOr BoolExpr)                          -- ^ logical OR
-    | Not (VarOr BoolExpr)                                          -- ^ logical NOT
+    | Not (VarOr BoolExpr)                        -- ^ logical NOT
         deriving (Eq, Show, Generic)
 
 data DataExpr
-    = GroupBy VarOrFieldName (VarOr DataExpr)   -- ^ (groupingField :: Literal FieldName) (input :: DataExpr)
-    | Filter BoolExpr (VarOr DataExpr)          -- ^ comparison (input :: DataExpr)
+    = GroupBy (VarOr FieldName) (VarOr DataExpr)    -- ^ (groupingField :: Literal FieldName) (input :: DataExpr)
+    | Filter BoolExpr (VarOr DataExpr)              -- ^ comparison (input :: DataExpr)
         deriving (Eq, Show, Generic)
 
 data GroupOp
     -- (grouping :: DataExpr)
     = GroupCount (VarOr DataExpr)
     -- (foldType :: PositionFold) (fieldName :: FieldName) (input :: DataExpr) (relative :: Maybe DataExpr)
-    | PositionFold PositionFold VarOrFieldName (VarOr DataExpr) (Maybe (VarOr DataExpr))
+    | PositionFold PositionFold (VarOr FieldName) (VarOr DataExpr) (Maybe (VarOr DataExpr))
+    -- NB: does not support a relative of a relative, e.g.:
+    --  "(sum Value of x1 relative to x2) relative to (sum Value of y1 relative to y2)"
         deriving (Eq, Show, Generic)
 
 -- [Position] -> 'Number'
@@ -75,7 +73,6 @@ data PositionFold =
         deriving (Eq, Ord, Generic, Show)
 
 type VarName = Text
-type VarOrFieldName = VarOr Text
 
 -- rhs of let-binding
 data VarExpr
@@ -86,12 +83,33 @@ data VarExpr
 
 data RuleExpr
     = Let VarName VarExpr
-    | Foreach (VarOr DataExpr) (NonEmpty RuleExpr)  -- ^ (input :: DataExpr) scope
-    | If (VarOr BoolExpr) (NonEmpty RuleExpr)
+    | Forall (VarOr DataExpr) [RuleExpr]  -- ^ (input :: DataExpr) scope
+    | If (VarOr BoolExpr) [RuleExpr]
     | Rule (VarOr BoolExpr)              -- ^ a condition that must be true
         deriving (Eq, Show, Generic)
 
 
+-- #### TYPE CLASS INSTANCES #### --
+
+instance Eq Literal where
+    (Percent a) == (Percent b) = a == b
+    (FieldName a) == (FieldName b) = a == b -- TODO: do we need this?
+    (FieldValue a) == (FieldValue b) = a == b
+    _ == _ = False
+
+-- TODO: static check of invalid comparisons
+instance Ord Literal where
+    (Percent a) `compare` (Percent b) = a `compare` b
+    (FieldName a) `compare` (FieldName b) = a `compare` b -- TODO: do we need this?
+    (FieldValue a) `compare` (FieldValue b) = a `compare` b
+    compare a b = error $ "Invalid comparison: " ++ show (a, b)
+
+instance Ord FieldValue where
+    (Number a) `compare` (Number b) = a `compare` b
+    -- Below throws an error
+    compare a b = error $ "Field comparison not implemented: " ++ show (a,b)
+
+instance Hashable PositionFold
 
 
 
@@ -197,10 +215,10 @@ data RuleExpr
 -- AND value of each issue <= 5% (relative to Portoflio)
 {-
     let issuers = Portfolio grouped by IssuerName
-    for all issuers:
+    forall issuers:
         let issues = IssuerName grouped by IssueID
         count issues >= 5
-        for all issues:
+        forall issues:
             sum DirtyValue of IssueID relative to Portfolio <= 5%
 -}
 
@@ -255,37 +273,6 @@ data RuleExpr
 -}
 
 
--- #### TYPE CLASS INSTANCES #### --
-
-instance Eq Literal where
-    (Percent a) == (Percent b) = a == b
-    (FieldName a) == (FieldName b) = a == b
-    (FieldValue a) == (FieldValue b) = a == b
-    _ == _ = False
-
--- instance Eq Literal where
---     (Field (Json.String strA)) == (Field (Json.String strB)) =
---         strA == strB
---     -- Below throws an error
---     (Field a) == (Field b) =
---         error $ "Field comparison not implemented: " ++ show (a,b)
---     (==) a b = error $ "Invalid comparison: " ++ show (a, b)
-
--- TODO: static check of invalid comparisons
-instance Ord Literal where
-    (Percent a) `compare` (Percent b) = a `compare` b
-    (FieldName a) `compare` (FieldName b) = a `compare` b
-    (FieldValue a) `compare` (FieldValue b) = a `compare` b
-    compare a b = error $ "Invalid comparison: " ++ show (a, b)
-
-instance Ord FieldValue where
-    (Number a) `compare` (Number b) = a `compare` b
-    -- Below throws an error
-    compare a b = error $ "Field comparison not implemented: " ++ show (a,b)
-
-instance Hashable PositionFold
-
-
 
 -- complex
 {-
@@ -322,9 +309,33 @@ instance Hashable PositionFold
 
 
 
+{-
+
+
+    Portfolio where
+        (position.InstrumentType == "GovernmentBond" OR position.InstrumentType == "StateBond")
+
+    Portfolio grouped by Country where
+        (position.InstrumentType == "OTC" OR sum Value of Country < 10M)
+
+
+    eval boolExpr = \position -> bool
+
+-}
 
 
 
 
-
+-- let otcPositions = Portfolio where (InstrumentType == "OTC")
+-- forall (otcPositions grouped by Counterparty) {
+--    let counterpartyExposure = sum Exposure of Counterparty relative to Portfolio
+--    // non-approved credit institutions
+--    if (Counterparty == "SmallCompanyX" OR (Counterparty == "SmallCompanyY" OR Counterparty == "SmallCompanyZ") {
+--        require counterpartyExposure <= 5%
+--    }
+--    // approved credit institutions
+--    if (Counterparty == "HugeCorporationA" OR (Counterparty == "HugeCorporationB" OR Counterparty == "HugeCorporationC") {
+--        require counterpartyExposure <= 10%
+--    }
+-- }
 
