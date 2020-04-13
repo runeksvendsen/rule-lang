@@ -1,8 +1,14 @@
 cabal-version: 1.12
 
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 99c5eb78769b1ad66042910706c75f8520796fc1750f5765025f40c770684361
+
 name:           rule-lang
 version:        0.1.0.0
-homepage:       https://github.com/runeksvendsen/rule-lang
+homepage:       https://github.com/runeksvendsen/rule-lang#readme
 bug-reports:    https://github.com/runeksvendsen/rule-lang/issues
 author:         Rune K. Svendsen
 maintainer:     runesvend@gmail.com
@@ -18,20 +24,10 @@ library
   exposed-modules:
       Absyn
       Comparison
-      Eval.Common
-      Eval.DataExpr
-      Eval.GroupFold
-      Eval.Grouping
-      Eval.GroupValueExpr
-      Eval.Monad
-      Eval.Result
-      Eval.RuleExpr
-      Eval.Types
+      Eval
       LangPrelude
+      Parse
       Pretty
-      Rules.CountryBondValue
-      Rules.FiveTenForty
-      Rules.Syntax
       Tree
       Types
   other-modules:
@@ -47,6 +43,7 @@ library
     , errors
     , hashable
     , megaparsec
+    , parsers
     , protolude
     , text
     , transformers
@@ -56,9 +53,6 @@ library
 executable rule-lang-exe
   main-is: Main.hs
   other-modules:
-      Output
-      Sunburst.D3
-      Sunburst.Highcharts
       Paths_rule_lang
   hs-source-dirs:
       app
@@ -69,7 +63,37 @@ executable rule-lang-exe
     , base >=4.7 && <5
     , bytestring
     , hashable
+    , megaparsec
+    , pretty-show
     , rule-lang
     , text
     , unordered-containers
+  default-language: Haskell2010
+
+test-suite rule-lang-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Orphans
+      Spec.Parse
+      Unit
+      Paths_rule_lang
+  hs-source-dirs:
+      test
+  default-extensions: OverloadedStrings StandaloneDeriving DeriveGeneric NoImplicitPrelude FlexibleContexts
+  ghc-options: -Wall
+  build-depends:
+      base >=4.7 && <5
+    , hedgehog
+    , hspec
+    , hspec-expectations-pretty-diff
+    , hspec-smallcheck
+    , megaparsec
+    , neat-interpolation
+    , rule-lang
+    , smallcheck
+    , tasty
+    , tasty-smallcheck
+    , text
+    , transformers
   default-language: Haskell2010

@@ -31,6 +31,7 @@ library:
     - protolude
     - containers
     - megaparsec
+    - parsers
 
 executables:
   rule-lang-exe:
@@ -43,3 +44,26 @@ executables:
       - aeson
       - unordered-containers  # Output
       - hashable              # Output
+      - pretty-show
+      - megaparsec
+
+tests:
+  rule-lang-test:
+    main:                Spec.hs
+    source-dirs:         test
+    dependencies:
+      - rule-lang
+      - megaparsec
+      - smallcheck
+      - transformers
+      - tasty
+      - tasty-smallcheck
+      - text
+      # HSpec
+      - hspec
+      - hspec-smallcheck
+      - hspec-expectations-pretty-diff
+      - neat-interpolation
+      - hedgehog
+    # ghc-options:
+    #   - -O2

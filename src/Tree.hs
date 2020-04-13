@@ -1,95 +1,87 @@
--- {-# LANGUAGE ScopedTypeVariables #-}
 module Tree
 ( Tree(..)
-, mapTermNodeM
-, forTermNodeM
-, collectTermNodes
-, collectTermNodeLabels
-, collectTermNodeTrees
-, drawTree
--- * Re-exports
-, Data.Tree.unfoldTreeM
+, NodeData(..)
+, accumMap
+, termNodes
+, addGrouping
 )
 where
 
 import LangPrelude
--- import Absyn
-import Eval.Types
--- import Eval.Result
+import Types
+import qualified Data.HashMap.Strict as M
 
-import qualified Data.Tree
 
 data Tree leafLabel =
-      Node (FieldName, FieldValue) [Tree leafLabel]
-    | TermNode (FieldName, FieldValue) leafLabel
+      Node (NodeData [Tree leafLabel])
+    | TermNode (NodeData leafLabel)
+        deriving (Eq, Show)
 
-instance Functor Tree where
-    fmap f (Node lab treeList) = Node lab (map (fmap f) treeList)
-    fmap f (TermNode lab leaf) = TermNode lab (f leaf)
+data NodeData a = NodeData (FieldName, FieldValue) a
+    deriving (Eq, Show)
 
--- data Tree a = Empty | Leaf a | Node (Tree a) a (Tree a)
-
-instance Foldable Tree where
-   foldMap f (TermNode lab leaf) = f leaf
-   foldMap f (Node lab nodeList) =
-        foldr (\item result -> foldMap f item `mappend` result) mempty nodeList
-
-forTermNodeM
-    :: Monad m
-    => Tree a
-    -> (Tree a -> m b)
-    -> m (Tree b)
-forTermNodeM = flip mapTermNodeM
-
-mapTermNodeM
-    :: Monad m
-    => (Tree a -> m b)  -- ^ A tree from the root node and to a single 'TermNode'
-    -> Tree a
-    -> m (Tree b)
-mapTermNodeM f tree =
+-- Collect all term nodes
+termNodes :: Tree leafLabel -> [leafLabel]
+termNodes tree =
     go [] tree
   where
-    go pathAccum (Node lab subTree) =
-        Node lab <$> mapM (go (lab : pathAccum)) subTree
-    go pathAccum (TermNode lab leaf) =
-        let treePath = foldr (\nodeLab tree -> Node nodeLab [tree]) (TermNode lab leaf) pathAccum
-        in TermNode lab <$> f treePath
+    go accum (Node (NodeData _ subTree)) = concat $ map (go accum) subTree
+    go accum (TermNode (NodeData _ leaf)) = leaf : accum
 
-collectTermNodeTrees
-    :: Tree leafLabel
-    -> [ Tree leafLabel ]
-collectTermNodeTrees = map (uncurry TermNode) . collectTermNodes
+-- | Apply the accumulating function to all paths in the tree
+--    that start from the root ("Portfolio") node and ends
+--    at a 'TermNode' (the innermost grouping).
+accumMap
+    -- Accumulating function
+    -- Applied to the contents of a Node
+    :: (state -> Tree a -> (FieldName, FieldValue) -> state)
+    -- Mapping function
+    -- Applied to the contents of a TermNode
+    -> (a -> state -> b)
+    -- Initial state
+    -> state
+    -- Input tree
+    -> Tree a
+    -- Output tree
+    -> Tree b
+accumMap f mkRes accum tree@(Node (NodeData label subTree)) =
+    let newAccum = f accum tree label
+        newSubTree = map (accumMap f mkRes newAccum) subTree
+    in Node (NodeData label newSubTree)
+accumMap f mkRes accum tree@(TermNode (NodeData label a)) =
+    let newAccum = f accum tree label
+    in TermNode (NodeData label (mkRes a newAccum))
 
-collectTermNodeLabels :: Tree a -> [a]
-collectTermNodeLabels = map snd . collectTermNodes
-
-collectTermNodes
-    :: Tree leafLabel
-    -> [ ((FieldName, FieldValue), leafLabel) ]
-collectTermNodes tree =
+addGrouping
+    :: (FieldName -> Position -> FieldValue)
+    -> FieldName
+    -> Tree [Position]
+    -> Tree [Position]
+addGrouping lookupFun fieldName tree =
     go tree
   where
-    go (Node _ subTree) =
-        concat $ map go subTree
-    go (TermNode lab posList) =
-        [(lab, posList)]
+    mkTermNode :: (FieldValue, [Position]) -> Tree [Position]
+    mkTermNode (fieldValue, positions) = TermNode $ NodeData (fieldName, fieldValue) positions
+    go tn@(TermNode (NodeData _ [])) = tn
+    go (Node (NodeData lab subTree)) = do
+        let newSubTree = map go subTree
+        Node $ NodeData lab newSubTree
+    go (TermNode (NodeData lab posList)) = do
+        let grouping = mkGrouping (lookupFun fieldName) posList
+        Node $ NodeData lab (map mkTermNode (M.toList grouping))
 
-fromTuple :: (FieldName, FieldValue) -> Level
-fromTuple = uncurry Level
-
-drawTree :: Show leafLabel => Tree [leafLabel] -> String
-drawTree = Data.Tree.drawTree . fmap show . toContainers
-
--- Used for converting to/from 'Data.Tree.Tree'
-data NodeLabel leafLabel
-    = NodeLab (FieldName, FieldValue)
-    | TermNodeLab (FieldName, FieldValue) leafLabel
-        deriving Show
-
-toContainers
-    :: Tree [leafLabel]
-    -> Data.Tree.Tree (NodeLabel [leafLabel])
-toContainers (Node nodeLabel subTree) =
-    Data.Tree.Node (NodeLab nodeLabel) (map toContainers subTree)
-toContainers (TermNode nodeLabel leafList) =
-    Data.Tree.Node (TermNodeLab nodeLabel leafList) []
+mkGrouping
+    :: Groupable key
+    => (val -> key)
+    -> [val]
+    -> Map key [val]
+mkGrouping f =
+    foldr folder emptyMap
+    where
+        folder val groupingMap =
+            M.insertWith insertFunc (f val) [val] groupingMap
+        -- NB: 'insertFunc' requires two values of the same type,
+        --  so we wrap the new value in a list above and take it
+        --  out using 'head' below
+        insertFunc new old = head new : old
+        -- Look up a variable and throw exception if not found
