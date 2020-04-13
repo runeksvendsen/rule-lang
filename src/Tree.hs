@@ -28,7 +28,9 @@ termNodes tree =
     go accum (Node (NodeData _ subTree)) = concat $ map (go accum) subTree
     go accum (TermNode (NodeData _ leaf)) = leaf : accum
 
--- |
+-- | Apply the accumulating function to all paths in the tree
+--    that start from the root ("Portfolio") node and ends
+--    at a 'TermNode' (the innermost grouping).
 accumMap
     -- Accumulating function
     -- Applied to the contents of a Node
@@ -51,10 +53,11 @@ accumMap f mkRes accum tree@(TermNode (NodeData label a)) =
     in TermNode (NodeData label (mkRes a newAccum))
 
 addGrouping
-    :: FieldName
+    :: (FieldName -> Position -> FieldValue)
+    -> FieldName
     -> Tree [Position]
     -> Tree [Position]
-addGrouping fieldName tree =
+addGrouping lookupFun fieldName tree =
     go tree
   where
     mkTermNode :: (FieldValue, [Position]) -> Tree [Position]
@@ -64,20 +67,8 @@ addGrouping fieldName tree =
         let newSubTree = map go subTree
         Node $ NodeData lab newSubTree
     go (TermNode (NodeData lab posList)) = do
-        let grouping = mkCurrentLevelGrouping fieldName posList
+        let grouping = mkGrouping (lookupFun fieldName) posList
         Node $ NodeData lab (map mkTermNode (M.toList grouping))
-
-mkCurrentLevelGrouping
-    :: FieldName
-    -> [Position]
-    -> Map FieldValue [Position]
-mkCurrentLevelGrouping fieldName currentLevelPositions =
-    mkGrouping (lookup' fieldName) currentLevelPositions
-  where
-    lookup' varName env =
-        maybe (error $ "Variable '" ++ toS varName ++ "' not found")
-            id
-            (lookup varName env)
 
 mkGrouping
     :: Groupable key

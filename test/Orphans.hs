@@ -70,7 +70,7 @@ instance Monad m => Serial m Absyn.RuleExpr where
         in
         (Absyn.Let <$> varName <*> SS.series)
             -- self-recursive
-            \/ (Absyn.Foreach <$> SS.series <*> nonEmptyRule)
+            \/ (Absyn.Forall <$> SS.series <*> nonEmptyRule)
             -- self-recursive
             \/ (Absyn.If <$> SS.series <*> nonEmptyRule)
             \/ (Absyn.Rule <$> SS.series)

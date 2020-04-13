@@ -18,7 +18,7 @@ pp indentation exprList =
     go :: Word -> RuleExpr -> [(Word, Text)] -> [(Word, Text)]
     go level (Let name rhs) accum =
         (level, "let " <> (name :: Text) <> " = " <> ppVarExpr rhs) : accum
-    go level (Foreach dataExpr scope) accum =
+    go level (Forall dataExpr scope) accum =
         (level, "forall " <> ppVarOr ppDataExpr dataExpr <> " {")
         : foldr (go (level+1)) [] scope ++ [(level, "}")] ++ accum
     go level (If boolExpr scope) accum =

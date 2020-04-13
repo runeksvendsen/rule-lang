@@ -33,7 +33,7 @@ eval initialEnv ruleExprs' =
     go (env, success) (Let varName varExpr) =
         let newEnv = insert' env varName (evalVarExpr env varExpr)
         in (newEnv, success)
-    go (env, success) (Foreach varOrDataExpr ruleExprs) =
+    go (env, success) (Forall varOrDataExpr ruleExprs) =
         let envTree = accumMap (\env' tree (fieldName, _) -> insert' env' fieldName (EvalTree tree))
                                (\_ env' -> eval env' ruleExprs)
                                env
@@ -55,7 +55,7 @@ evalDataExpr env dataExpr =
         GroupBy varOrFieldName varOrDataExpr ->
             let tree = getTree env varOrDataExpr
                 fieldName = getFieldName env varOrFieldName
-            in addGrouping fieldName tree
+            in addGrouping posLookup fieldName tree
         Filter boolExpr varOrDataExpr ->
             let filterPos env' =
                     case evalBoolExpr env' boolExpr of
@@ -112,13 +112,9 @@ evalPositionFold env positionFold fieldName varOrDataExpr =
     in foldFunc $ map getNumber (concat $ termNodes tree)
   where
     getNumber pos = do
-        let resM = lookup fieldName pos
-        case resM of
-            Just (Number num) -> num
-            Just fieldValue -> do
-                error $ "Type mismatch. Expected Number found " ++ show fieldValue
-            Nothing ->
-                error $ "Field " ++ show fieldName ++ " not found for position " ++ show pos
+        case posLookup fieldName pos of
+            Number num -> num
+            fieldValue -> typeError "Number" (EvalValue $ FieldValue fieldValue)
     foldFunction
         :: (Fractional a, Ord a, Foldable t)
         => PositionFold
@@ -178,12 +174,6 @@ evalBoolExpr env boolExpr =
         -> Either Bool (a -> Bool)
     unopCompose f (Right b1Fun) = Right $ \pos -> f $ b1Fun pos
     unopCompose f (Left b1) = Left $ f b1
-    posLookup :: FieldName -> Position -> FieldValue
-    posLookup fieldName pos =
-        let errorMsg = unlines ["Field name '" ++ toS fieldName ++ "' not found in position:", show pos]
-        in maybe (error errorMsg)
-            id
-            (lookup fieldName pos)
 
 
 -- #####################
@@ -198,6 +188,13 @@ lookup' :: Text -> Env b -> b
 lookup' varName items =
     fromMaybe (error $ "Variable '" ++ toS varName ++ "' not found") $
         Data.List.lookup varName (NE.toList items)
+
+posLookup :: FieldName -> Position -> FieldValue
+posLookup fieldName pos =
+    let errorMsg = unlines ["Field name '" ++ toS fieldName ++ "' not found in position:", show pos]
+    in maybe (error errorMsg)
+        id
+        (lookup fieldName pos)
 
 getTree :: Env LiteralOrTree -> VarOr DataExpr -> Tree [Position]
 getTree env (NotVar dataExpr) = evalDataExpr env dataExpr

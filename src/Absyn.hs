@@ -83,7 +83,7 @@ data VarExpr
 
 data RuleExpr
     = Let VarName VarExpr
-    | Foreach (VarOr DataExpr) [RuleExpr]  -- ^ (input :: DataExpr) scope
+    | Forall (VarOr DataExpr) [RuleExpr]  -- ^ (input :: DataExpr) scope
     | If (VarOr BoolExpr) [RuleExpr]
     | Rule (VarOr BoolExpr)              -- ^ a condition that must be true
         deriving (Eq, Show, Generic)

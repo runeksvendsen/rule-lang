@@ -61,7 +61,7 @@ pForEach :: Parser RuleExpr
 pForEach = debug "pForEach" $ do
     dataExpr <- forEachHeader
     scope <- braces (many (skipTrailingNewline pRuleExpr))
-    return $ Foreach dataExpr scope
+    return $ Forall dataExpr scope
 
 forEachHeader :: Parser (VarOr DataExpr)
 forEachHeader = debug "forEachHeader" $ do
