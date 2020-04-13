@@ -127,7 +127,6 @@ evalPositionFold env positionFold fieldName varOrDataExpr =
     foldFunction Max = foldl' max 0
     foldFunction Min = foldl' min 0
 
-
 evalBoolExpr
     :: Env LiteralOrTree
     -> BoolExpr
@@ -174,7 +173,6 @@ evalBoolExpr env boolExpr =
         -> Either Bool (a -> Bool)
     unopCompose f (Right b1Fun) = Right $ \pos -> f $ b1Fun pos
     unopCompose f (Left b1) = Left $ f b1
-
 
 -- #####################
 -- ###### Helpers ######
@@ -226,13 +224,6 @@ getFieldName env (Var varName) = fromLitOrTree $ lookup' varName env
   where
     fromLitOrTree (EvalValue (FieldName fieldName)) = fieldName
     fromLitOrTree other = typeError "FieldName" other
-
-getFieldValue :: Env LiteralOrTree -> VarOr FieldValue -> FieldValue
-getFieldValue _ (NotVar fieldValue) = fieldValue
-getFieldValue env (Var varName) = fromLitOrTree $ lookup' varName env
-  where
-    fromLitOrTree (EvalValue (FieldValue fieldValue)) = fieldValue
-    fromLitOrTree other = typeError "FieldValue" other
 
 getValue :: Env LiteralOrTree -> VarOr ValueExpr -> Literal
 getValue env (NotVar valueExpr) = evalValueExpr env valueExpr

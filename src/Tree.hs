@@ -12,6 +12,13 @@ import Types
 import qualified Data.HashMap.Strict as M
 
 
+test =
+    Node $ NodeData ("Portfolio","")
+        [ TermNode (NodeData ("Country", "DK") ["P7"])
+        , TermNode (NodeData ("Country", "US") ["P2", "P3", "P5", "P8"])
+        , TermNode (NodeData ("Country", "GB") ["P1", "P4", "P6"])
+        ]
+
 data Tree leafLabel =
       Node (NodeData [Tree leafLabel])
     | TermNode (NodeData leafLabel)
