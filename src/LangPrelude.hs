@@ -80,7 +80,6 @@ showValue (Json.Number num) = T.pack $ printf "%f" (realToFrac num :: Double)
 showValue (Json.Bool b) = if b then "true" else "false"
 showValue Json.Null = "(null)"
 
-
 neText :: Text -> NonEmpty Char
 neText = fromList . T.unpack
 

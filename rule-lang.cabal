@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 35ceaa27eed4fb1a50a41f376aa4d46800cd3c3e6d15ac9e41b913913b3d5b8d
+-- hash: e5dbdfb610e5dd0b3db7cf03c77a64d76ae5f29a58b17acac26a3cad79d8d910
 
 name:           rule-lang
 version:        0.1.0.0
@@ -24,13 +24,7 @@ library
   exposed-modules:
       Absyn
       Comparison
-      Eval.Bool
-      Eval.Common
-      Eval.DataExpr
-      Eval.GroupFold
-      Eval.Grouping
-      Eval.Result
-      Eval.Types
+      Eval
       LangPrelude
       Parse
       Pretty
@@ -70,6 +64,7 @@ executable rule-lang-exe
     , bytestring
     , hashable
     , megaparsec
+    , neat-interpolation
     , pretty-show
     , rule-lang
     , text

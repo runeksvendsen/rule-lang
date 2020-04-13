@@ -46,6 +46,7 @@ executables:
       - hashable              # Output
       - pretty-show
       - megaparsec
+      - neat-interpolation
 
 tests:
   rule-lang-test:

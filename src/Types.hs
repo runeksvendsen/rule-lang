@@ -12,9 +12,10 @@ where
 import LangPrelude
 import qualified Data.Aeson                             as Json
 import Data.String (IsString(fromString))
+import Text.Read (Read(..))
+
 
 type FieldName = Text
-
 
 data FieldValue
     = Number Number
@@ -38,7 +39,13 @@ fromJsonValue _ =
     Nothing
 
 newtype Number = Number' Double
-    deriving (Eq,Ord,Enum,Floating,Fractional,Num,Real,RealFloat,RealFrac,Show,Read,Hashable)
+    deriving (Eq,Ord,Enum,Floating,Fractional,Num,Real,RealFloat,RealFrac,Hashable)
+
+instance Show Number where
+    show (Number' double) = show double
+
+instance Read Number where
+    readPrec = Number' <$> readPrec
 
 fromReal :: Real a => a -> Number
 fromReal = Number' . realToFrac

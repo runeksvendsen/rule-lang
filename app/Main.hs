@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes #-}
 module Main
 ( main
 )
@@ -9,65 +10,95 @@ import qualified Pretty
 import qualified Text.Show.Pretty
 import qualified Text.Megaparsec
 import qualified Data.Text as T
+import NeatInterpolation (text)
+-- TMP
+import Data.Void
 
 
-parse :: Text -> IO ()
-parse input =
-    case Text.Megaparsec.parse Parse.documentParser "" input of
-        Left  e -> putStr (Text.Megaparsec.errorBundlePretty e)
-        Right x -> Text.Show.Pretty.pPrint x
+everything :: [Text]
+everything =
+    [ ruleI
+    , ruleII
+    , ruleIII
+    , ruleIV
+    ]
 
 main :: IO ()
 main = forM_ everything $ \code -> do
     let absyn = parse' code
-    putStrLn (toS $ Pretty.pp "  " absyn)
-    putStrLn ""
-    Text.Show.Pretty.pPrint absyn
-    putStrLn ""
+        prettyPrinted = Pretty.pp "   " absyn
+    if prettyPrinted /= code
+        then error . toS $ T.unlines
+                [ "### ERROR. Input:"
+                , code
+                , "### Printed incorrectly:"
+                , prettyPrinted
+                , "### Absyn:"
+                , toS $ Text.Show.Pretty.ppShow absyn
+                ]
+        else putStrLn "success"
   where
     parse' input = case Text.Megaparsec.parse Parse.documentParser "" input of
         Left  e -> error (Text.Megaparsec.errorBundlePretty e)
         Right x -> x
 
-ruleI = T.unlines
-    [ "let issuers = Portfolio grouped by Issuer"
-    , "for all issuers {"
-    , "  require sum Value of Issuer relative to Portfolio <= 10%"
-    , "}"
-    , "let greaterThan5PctIssuers = issuers where (sum Value of Issuer relative to Portfolio > 5%)"
-    , "require sum Value of greaterThan5PctIssuers <= 40%"
-    ]
+ruleI :: Text
+ruleI =
+    [text|
+let issuers = Portfolio grouped by .Issuer
+forall issuers {
+   require sum .Value of Issuer relative to Portfolio <= 10%
+}
+let issuersAbove5Pct = issuers where (sum .Value of Issuer relative to Portfolio > 5%)
+require sum .Value of issuersAbove5Pct <= 40%
+    |]
 
-ruleII = T.unlines
-    [ "let issuers = Portfolio grouped by Issuer"
-    , "for all issuers {"
-    , "  let issuerValue = sum Value of Issuer relative to Portfolio"
-    , "  require issuerValue <= 35%"
-    , "  let issueCount = count Issuer grouped by Issue"
-    , "  if issuerValue > 30% {"
-    , "    require issueCount >= 6"
-    , "  }"
-    , "}"
-    ]
+ruleII :: Text
+ruleII =
+    [text|
+let issuers = Portfolio grouped by .Issuer
+forall issuers {
+   let issuerValue = sum .Value of Issuer relative to Portfolio
+   require issuerValue <= 35.0%
+   let issueCount = count Issuer grouped by .Issue
+   if issuerValue > 30% {
+      require issueCount >= 6
+   }
+}
+    |]
 
-ruleIII = T.unlines
-    [ "let govtSecurities = Portfolio where ((InstrumentType == \"GovernmentBond\" OR InstrumentType == \"StateBond\"))"
-    , "for all govtSecurities grouped by Issuer {"
-    , "  let issuerValue = sum Value of Issuer relative to Portfolio"
-    , "  if issuerValue > 35% {"
-    , "    let issues = Issuer grouped by Issue"
-    , "    require count issues >= 6"
-    , "    for all issues {"
-    , "      require sum Value of Issue relative to Portfolio <= 30%"
-    , "    }"
-    , "  }"
-    , "}"
-    ]
+ruleIII :: Text
+ruleIII =
+    [text|
+let govtSecurities = Portfolio where ((.InstrumentType == "GovernmentBond" OR .InstrumentType == "StateBond"))
+forall govtSecurities grouped by .Issuer {
+   let issuerValue = sum .Value of Issuer relative to Portfolio
+   if issuerValue > 35% {
+      let issues = Issuer grouped by .Issue
+      require count issues >= 6
+      forall issues {
+         require sum .Value of Issue relative to Portfolio <= 30%
+      }
+   }
+}
+    |]
 
-everything :: [Text]
-everything =
-    [ ruleIII
-    ]
+ruleIV :: Text
+ruleIV =
+    [text|
+let otcPositions = Portfolio where (.InstrumentType == "OTC")
+forall otcPositions grouped by .Counterparty {
+   let counterpartyExposure = sum .Exposure of Counterparty relative to Portfolio
+   // non-approved credit institutions
+   if (Counterparty == "SmallCompanyX" OR (Counterparty == "SmallCompanyY" OR Counterparty == "SmallCompanyZ")) {
+      require counterpartyExposure <= 5.0%
+   }
+   // approved credit institutions
+   if (Counterparty == "HugeCorpA" OR (Counterparty == "HugeCorpB" OR Counterparty == "HugeCorpC")) {
+      require counterpartyExposure <= 10.0%
+   }
+}
+    |]
 
 test999 :: Text
 test999 = T.unlines
