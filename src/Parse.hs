@@ -35,7 +35,7 @@ import Data.List (foldl')
 type Parser = M.Parsec Void Text
 
 documentParser :: Parser (NonEmpty RuleExpr)
-documentParser = some' (skipTrailingNewline pRuleExpr) <* M.eof
+documentParser = scn *> some' (skipTrailingNewline pRuleExpr) <* M.eof
 
 some' :: Parser a -> Parser (NonEmpty a)
 some' p = NE.fromList <$> some p
