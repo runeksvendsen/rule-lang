@@ -46,7 +46,6 @@ executables:
       - hashable              # Output
       - pretty-show
       - megaparsec
-      - neat-interpolation
 
 tests:
   rule-lang-test:
@@ -64,5 +63,7 @@ tests:
       - hspec
       - hspec-smallcheck
       - hspec-expectations-pretty-diff
+      - neat-interpolation
+      - hedgehog
     # ghc-options:
     #   - -O2

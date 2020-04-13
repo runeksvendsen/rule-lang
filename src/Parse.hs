@@ -97,8 +97,8 @@ pVarExpr = debug "pVarExpr" $
 -- TODO: document reserved keywords, e.g. "sum" or "average".
 pValueExpr :: Parser ValueExpr
 pValueExpr = debug "pValueExpr" $
-        M.try (GroupOp <$> pGroupOp)
-    <|> M.try (Literal <$> pLiteral)
+        M.try (Literal <$> pLiteral)
+    <|> M.try (GroupOp <$> pGroupOp)
 
 -- 'Var' is last because otherwise e.g. "sum" is parsed as
 --   a variable instead of as a 'PositionFold'
@@ -228,8 +228,11 @@ pFieldValue = debug "pFieldValue" $
     <|> M.try (Number <$> pNumber)
   where
     pBool :: Parser Bool
-    -- TODO: fixme
-    pBool = M.try (keyword "true" >> return True) <|> (keyword "false" >> return False)
+    -- FIXME: variables that start with "true" or "false" (e.g. "falsePositions") are incorrectly parsed as
+    --  constant+variable
+    pBool = M.try (pConstant "true" >> return True) <|> (pConstant "false" >> return False)
+    pConstant c = debug "pConstant" $ do
+        void $ skipTrailingNewline $ M.chunk c
     pStringLiteral :: Parser String
     pStringLiteral =
         Text.Megaparsec.Char.char '\"' *> M.manyTill L.charLiteral
@@ -250,7 +253,7 @@ parse p input =
 
 debug :: Show a => String -> Parser a -> Parser a
 debug =
-    on
+    off
   where
     off = const id
     on :: Show a => String -> Parser a -> Parser a

@@ -107,9 +107,9 @@ ppFieldValue (Bool False) = "false"
 
 ppNumber :: Number -> Text
 ppNumber num =
-    let string = show' (realToFrac num :: Double)
+    let numStr = show' (realToFrac num :: Double)
     -- Remove (optional) trailing ".0"
-    in fromMaybe string $ T.stripSuffix ".0" string
+    in fromMaybe numStr $ T.stripSuffix ".0" numStr
 
 -- ######### Helpers
 

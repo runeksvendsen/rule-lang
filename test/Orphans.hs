@@ -65,8 +65,8 @@ varOr ss =
 
 instance Monad m => Serial m Absyn.RuleExpr where
     series =
-        let ruleExprSeries = decDepth SS.series
-            nonEmptyRule = oneNonEmpty ruleExprSeries -- \/ twoNonEmpty ruleExprSeries
+        let ruleExprSeries = SS.series
+            nonEmptyRule = lengthTwoList ruleExprSeries
         in
         (Absyn.Let <$> varName <*> SS.series)
             -- self-recursive
@@ -136,13 +136,8 @@ instance Monad m => Serial m Absyn.Number where
 instance Monad m => Serial m (NE.NonEmpty Absyn.RuleExpr) where
     series = NE.fromList <$> nonEmptyList
 
-oneNonEmpty :: Monad m => Series m a -> Series m [a]
-oneNonEmpty series' = do
-    item <- series'
-    return [item]
-
-twoNonEmpty :: Monad m => Series m a -> Series m [a]
-twoNonEmpty series' = do
-    first <- series'
-    next <- decDepth series'
-    return $ first : [next]
+lengthTwoList :: Monad m => Series m a -> Series m [a]
+lengthTwoList series' = do
+    first <- decDepth series'
+    next <- decDepth $ decDepth series'
+    return [] \/ return [first] \/ return (first : [next])
