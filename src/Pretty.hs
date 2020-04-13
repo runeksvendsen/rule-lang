@@ -111,9 +111,6 @@ ppNumber num =
     -- Remove (optional) trailing ".0"
     in fromMaybe string $ T.stripSuffix ".0" string
 
-
-
-
 -- ######### Helpers
 
 parenthesize :: Text -> Text

@@ -12,7 +12,6 @@ import qualified Data.List.NonEmpty as NE
 import Test.SmallCheck.Series
 import qualified Test.SmallCheck.Series as SS
 import qualified Data.Text                        as T
-import Control.Monad.Trans.Class (lift)
 -- DEBUG
 import Debug.Trace
 
@@ -59,6 +58,7 @@ camelCaseText = do
 instance (Monad m, Serial m a) => Serial m (Absyn.VarOr a) where
     series = varOr SS.series
 
+varOr :: Monad m => Series m a -> Series m (Absyn.VarOr a)
 varOr ss =
     (Absyn.Var <$> varName)
         \/ (Absyn.NotVar <$> ss)
@@ -131,23 +131,18 @@ instance Monad m => Serial m Absyn.FieldValue where
             \/ (Absyn.Bool <$> return False)
 
 instance Monad m => Serial m Absyn.Number where
-    series = return $ Absyn.fromReal 1.0
+    series = return $ Absyn.fromReal (1.0 :: Double)
 
 instance Monad m => Serial m (NE.NonEmpty Absyn.RuleExpr) where
     series = NE.fromList <$> nonEmptyList
 
-nonEmpty :: Monad m => Series m a -> Series m (NE.NonEmpty a)
-nonEmpty series = do
-    depth <- getDepth
-    NE.fromList <$> lift (listM depth series)
+oneNonEmpty :: Monad m => Series m a -> Series m [a]
+oneNonEmpty series' = do
+    item <- series'
+    return [item]
 
-oneNonEmpty :: Monad m => Series m a -> Series m (NE.NonEmpty a)
-oneNonEmpty series = do
-    item <- series
-    return $ NE.fromList [item]
-
-twoNonEmpty :: Monad m => Series m a -> Series m (NE.NonEmpty a)
-twoNonEmpty series = do
-    first <- series
-    next <- decDepth series
-    return $ NE.fromList $ first : [next]
+twoNonEmpty :: Monad m => Series m a -> Series m [a]
+twoNonEmpty series' = do
+    first <- series'
+    next <- decDepth series'
+    return $ first : [next]

@@ -4,8 +4,6 @@ module Tree
 , accumMap
 , termNodes
 , addGrouping
-, mkCurrentLevelGrouping
-, mkGrouping
 )
 where
 
