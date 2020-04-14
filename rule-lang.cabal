@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 99c5eb78769b1ad66042910706c75f8520796fc1750f5765025f40c770684361
+-- hash: 163c0209688c30f3101df0505d52b92bef152793d3941ab4357bb8d79d861913
 
 name:           rule-lang
 version:        0.1.0.0
@@ -28,6 +28,7 @@ library
       LangPrelude
       Parse
       Pretty
+      QuasiQuote
       Tree
       Types
   other-modules:
@@ -45,6 +46,7 @@ library
     , megaparsec
     , parsers
     , protolude
+    , template-haskell
     , text
     , transformers
     , unordered-containers

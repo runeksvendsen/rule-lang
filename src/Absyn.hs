@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Absyn
 ( -- * Abstract syntax
@@ -29,31 +30,31 @@ import Comparison                           as Comparison
 data VarOr a
     = Var Text
     | NotVar a
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Generic, Data)
 
 -- | The result of evaluating a 'ValueExpr'
 data Literal
     = Percent Number
     | FieldName Text            -- the name of a field in a Position
     | FieldValue FieldValue     -- the contents of a field in a Position
-        deriving (Show, Generic)
+        deriving (Show, Generic, Data)
 
 data ValueExpr
     = Literal Literal
     | GroupOp GroupOp
-        deriving (Eq, Show, Generic)
+        deriving (Eq, Show, Generic, Data)
 
 data BoolExpr
     = Comparison (VarOr ValueExpr) BoolCompare (VarOr ValueExpr)    -- ^ compare two things
     | And (VarOr BoolExpr) (VarOr BoolExpr)                         -- ^ logical AND
     | Or (VarOr BoolExpr) (VarOr BoolExpr)                          -- ^ logical OR
     | Not (VarOr BoolExpr)                        -- ^ logical NOT
-        deriving (Eq, Show, Generic)
+        deriving (Eq, Show, Generic, Data)
 
 data DataExpr
     = GroupBy (VarOr FieldName) (VarOr DataExpr)    -- ^ (groupingField :: Literal FieldName) (input :: DataExpr)
     | Filter BoolExpr (VarOr DataExpr)              -- ^ comparison (input :: DataExpr)
-        deriving (Eq, Show, Generic)
+        deriving (Eq, Show, Generic, Data)
 
 data GroupOp
     -- (grouping :: DataExpr)
@@ -62,7 +63,7 @@ data GroupOp
     | PositionFold PositionFold (VarOr FieldName) (VarOr DataExpr) (Maybe (VarOr DataExpr))
     -- NB: does not support a relative of a relative, e.g.:
     --  "(sum Value of x1 relative to x2) relative to (sum Value of y1 relative to y2)"
-        deriving (Eq, Show, Generic)
+        deriving (Eq, Show, Generic, Data)
 
 -- [Position] -> 'Number'
 data PositionFold =
@@ -70,7 +71,7 @@ data PositionFold =
     | Average           -- (+ /)
     | Max               -- (Order)
     | Min               -- (Order)
-        deriving (Eq, Ord, Generic, Show)
+        deriving (Eq, Ord, Generic, Show, Data)
 
 type VarName = Text
 
@@ -79,14 +80,14 @@ data VarExpr
     = ValueExpr ValueExpr
     | BoolExpr BoolExpr
     | DataExpr DataExpr
-        deriving (Eq, Show, Generic)
+        deriving (Eq, Show, Generic, Data)
 
 data RuleExpr
     = Let VarName VarExpr
     | Forall (VarOr DataExpr) [RuleExpr]  -- ^ (input :: DataExpr) scope
     | If (VarOr BoolExpr) [RuleExpr]
     | Rule (VarOr BoolExpr)              -- ^ a condition that must be true
-        deriving (Eq, Show, Generic)
+        deriving (Eq, Show, Generic, Data)
 
 
 -- #### TYPE CLASS INSTANCES #### --

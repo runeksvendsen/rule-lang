@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Comparison
 ( BoolCompare(..)
 , comparator
@@ -23,7 +24,7 @@ data BoolCompare
     | Gt
     | LtEq
     | GtEq
-        deriving (Eq, Show, Read, Generic)
+        deriving (Eq, Show, Read, Generic, Data)
 
 -- | Used by pretty-printer
 valueToString :: [(BoolCompare, Text)]

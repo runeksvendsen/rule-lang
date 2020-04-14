@@ -16,6 +16,7 @@ module LangPrelude
 , module Hashable
 , module Void
 , module List
+, module Data
 )
 where
 
@@ -35,6 +36,7 @@ import qualified Data.Text                as T
 import           Data.Void                as Void
 import           Data.List                as List     (foldl')
 import qualified Data.List.NonEmpty       as NE
+import           Data.Data                as Data
 
 
 type Map = HashMap

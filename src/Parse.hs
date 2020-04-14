@@ -129,7 +129,7 @@ pFold = debug "pFold" $
     <|> M.try (keyword "minimum" >> return Min)
     <|> M.try (keyword "maximum" >> return Max)
 
--- A 'DataExpr' will always start with a variable (Var),
+-- A 'DataExpr' starts with a variable (Var),
 --  followed by zero or more 'Filter' and/or 'GroupBy' operations.
 pDataExpr :: Parser DataExpr
 pDataExpr = debug "pDataExpr" $ do
@@ -244,12 +244,6 @@ pNumber = debug "pNumber" $
 
 
 -- #### Helper functions ####
-
-parse :: Show a => Parser a -> Text -> IO ()
-parse p input =
-    case M.parse p "" input of
-        Left  e -> putStr (M.errorBundlePretty (e :: M.ParseErrorBundle T.Text Void))
-        Right x -> print x
 
 debug :: Show a => String -> Parser a -> Parser a
 debug =

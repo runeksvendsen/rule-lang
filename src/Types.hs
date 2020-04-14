@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralisedNewtypeDeriving #-}
 module Types
 ( FieldName
@@ -21,7 +22,7 @@ data FieldValue
     = Number Number
     | String Text
     | Bool Bool
-        deriving (Eq, Show, Generic)
+        deriving (Eq, Show, Generic, Data)
 
 instance Hashable FieldValue
 
@@ -39,7 +40,7 @@ fromJsonValue _ =
     Nothing
 
 newtype Number = Number' Double
-    deriving (Eq,Ord,Enum,Floating,Fractional,Num,Real,RealFloat,RealFrac,Hashable)
+    deriving (Eq,Ord,Enum,Floating,Fractional,Num,Real,RealFloat,RealFrac,Hashable,Data)
 
 instance Show Number where
     show (Number' double) = show double

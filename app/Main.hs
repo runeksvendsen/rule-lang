@@ -1,16 +1,22 @@
+{-# LANGUAGE QuasiQuotes #-}
 module Main
 ( main
 )
 where
 
 import LangPrelude
-import qualified Parse
-import qualified Pretty
+import qualified Absyn
+import QuasiQuote (rulelang)
 import qualified Text.Show.Pretty
-import qualified Text.Megaparsec
-import qualified Data.Text as T
--- TMP
-import Data.Void
+
 
 main :: IO ()
-main = return ()
+main = Text.Show.Pretty.pPrint lol
+
+lol =
+    [rulelang|
+let issuers = Portfolio grouped by .Issuer
+forall issuers {
+   require sum .Value of Issuer relative to Portfolio <= 10%
+}
+    |]
