@@ -1,6 +1,9 @@
 module Spec.Parse
 ( scProps
 , spec
+  -- * Used by other tests
+, printParseExpr
+, printParse
 )
 where
 
@@ -21,12 +24,45 @@ import qualified Test.Hspec.SmallCheck  as SC
 import Debug.Trace (trace)
 
 
+printParseRuleExpr :: NE.NonEmpty Parse.RuleExpr -> Either String String
+printParseRuleExpr =
+    printParse (T.unlines . Pretty.ppLines "  ") Parse.ruleParser
+
+printParseExpr :: Parse.Expr -> Either String String
+printParseExpr =
+    printParse Pretty.ppExpr Parse.pExpr
+
+printParseLiteral :: Parse.Literal -> Either String String
+printParseLiteral =
+    printParseExpr . Parse.Literal
+
+printParseValueExpr :: Parse.ValueExpr -> Either String String
+printParseValueExpr =
+    printParseExpr . Parse.ValueExpr
+
+printParseBoolExpr :: Parse.BoolExpr -> Either String String
+printParseBoolExpr =
+    printParseExpr . Parse.BoolExpr
+
+printParseDataExpr :: Parse.DataExpr -> Either String String
+printParseDataExpr =
+    printParseExpr . Parse.DataExpr
+
+printParseMap :: Parse.FieldName -> Parse.DataExpr -> Either String String
+printParseMap fieldName dataExpr =
+    printParseExpr $ Parse.Map (Parse.Literal $ Parse.FieldName fieldName) (Parse.DataExpr dataExpr)
+
+
 -- | "parse (prettyPrint absyn) == absyn"
-printParse :: NE.NonEmpty Parse.RuleExpr -> Either String String
-printParse absyn =
-    let prettyPrint = Pretty.pp "  "
-        prettyPrinted = prettyPrint absyn
-        parse = Parse.parse Parse.documentParser ""
+printParse
+    :: (Eq absyn, Show absyn)
+    => (absyn -> T.Text)
+    -> Parse.Parser absyn
+    -> absyn
+    -> Either String String
+printParse pp parser absyn =
+    let prettyPrinted = pp absyn
+        parse = Parse.parse parser ""
         debugOn pp' = T.unpack ("\n" <> pp') `trace` pp'
         debugOff = id
     in case parse (debugOff prettyPrinted) of
@@ -51,12 +87,33 @@ printParse absyn =
                         ]
 
 scProps :: TestTree
-scProps = testGroup "Properties"
-  [ SC.testProperty "parse (prettyPrint absyn) == absyn" printParse
-  ]
+scProps = testGroup "parse (prettyPrint absyn) == absyn"
+    [
+      depth 3 $ SC.testProperty "Literal" printParseLiteral
+    , depth 2 $ SC.testProperty "ValueExpr" printParseValueExpr
+    , depth 2 $ SC.testProperty "BoolExpr" printParseBoolExpr
+    , depth 3 $ SC.testProperty "DataExpr" printParseDataExpr
+    --   , SC.testProperty "Map" printParseMap
+    --   , SC.testProperty "Expr" printParseExpr
+    --   , SC.testProperty "[RuleExpr]" printParseRuleExpr
+    ]
+  where
+    depth d = localOption (SC.SmallCheckDepth d)
 
 spec :: Spec
-spec = parallel $ do
-    describe "Properties" $ do
-      it "parse (prettyPrint absyn) == absyn" $
-         SC.property printParse
+spec =
+    describe "parse (prettyPrint absyn) == absyn" $ do
+        it "Literal" $
+            SC.property printParseLiteral
+        it "ValueExpr" $
+            SC.property printParseValueExpr
+        it "BoolExpr" $
+            SC.property printParseBoolExpr
+        it "DataExpr" $
+            SC.property printParseDataExpr
+        -- it "Map" $
+        --     SC.property printParseMap
+        -- it "Expr" $
+        --     SC.property printParseExpr
+    --   it "[RuleExpr]" $
+    --      SC.property printParseRuleExpr

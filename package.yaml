@@ -31,8 +31,10 @@ library:
     - protolude
     - containers
     - megaparsec
+    - parser-combinators
     - parsers
     - template-haskell
+    - pretty-show # TEMPORARY
 
 executables:
   rule-lang-exe:
@@ -64,7 +66,7 @@ tests:
       - hspec
       - hspec-smallcheck
       - hspec-expectations-pretty-diff
-      - neat-interpolation
       - hedgehog
+      - pretty-show
     # ghc-options:
     #   - -O2

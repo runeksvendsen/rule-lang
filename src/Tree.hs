@@ -1,7 +1,9 @@
+{-# LANGUAGE DeriveFunctor #-}
 module Tree
 ( Tree(..)
 , NodeData(..)
-, accumMap
+, rootToLeafFold
+, mapTermNode
 , termNodes
 , addGrouping
 )
@@ -15,10 +17,10 @@ import qualified Data.HashMap.Strict as M
 data Tree leafLabel =
       Node (NodeData [Tree leafLabel])
     | TermNode (NodeData leafLabel)
-        deriving (Eq, Show)
+        deriving (Eq, Show, Functor)
 
 data NodeData a = NodeData (FieldName, FieldValue) a
-    deriving (Eq, Show)
+    deriving (Eq, Show, Functor)
 
 -- Collect all term nodes
 termNodes :: Tree leafLabel -> [leafLabel]
@@ -28,29 +30,36 @@ termNodes tree =
     go accum (Node (NodeData _ subTree)) = concat $ map (go accum) subTree
     go accum (TermNode (NodeData _ leaf)) = leaf : accum
 
--- | Apply the accumulating function to all paths in the tree
---    that start from the root ("Portfolio") node and ends
---    at a 'TermNode' (the innermost grouping).
-accumMap
-    -- Accumulating function
-    -- Applied to the contents of a Node
+-- Accumulate a state for each path from the root node to a TermNode.
+-- Add the accumulated state to the TermNode label.
+rootToLeafFold
+    -- Accumulating function.
+    -- Applied to the contents of each node from the root node to each TermNode.
     :: (state -> Tree a -> (FieldName, FieldValue) -> state)
-    -- Mapping function
-    -- Applied to the contents of a TermNode
-    -> (a -> state -> b)
     -- Initial state
     -> state
     -- Input tree
     -> Tree a
     -- Output tree
-    -> Tree b
-accumMap f mkRes accum tree@(Node (NodeData label subTree)) =
+    -> Tree (a, state)
+rootToLeafFold f accum tree@(Node (NodeData label subTree)) =
     let newAccum = f accum tree label
-        newSubTree = map (accumMap f mkRes newAccum) subTree
+        newSubTree = map (rootToLeafFold f newAccum) subTree
     in Node (NodeData label newSubTree)
-accumMap f mkRes accum tree@(TermNode (NodeData label a)) =
+rootToLeafFold f accum tree@(TermNode (NodeData label a)) =
     let newAccum = f accum tree label
-    in TermNode (NodeData label (mkRes a newAccum))
+    in TermNode (NodeData label (a, newAccum))
+
+-- | Modify the TermNode labels of a tree
+mapTermNode
+    :: (a -> b)
+    -> Tree a
+    -> Tree b
+mapTermNode f (Node (NodeData label subTree)) =
+    let newSubTree = map (mapTermNode f) subTree
+    in Node (NodeData label newSubTree)
+mapTermNode f (TermNode (NodeData label a)) =
+    TermNode (NodeData label (f a))
 
 addGrouping
     :: (FieldName -> Position -> FieldValue)
@@ -74,7 +83,7 @@ mkGrouping
     :: Groupable key
     => (val -> key)
     -> [val]
-    -> Map key [val]
+    -> HashMap key [val]
 mkGrouping f =
     foldr folder emptyMap
     where

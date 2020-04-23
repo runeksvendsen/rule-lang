@@ -1,19 +1,24 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Orphans where
+{-# LANGUAGE TypeApplications #-}
+module Orphans
+()
+where
 
 import Prelude
-import qualified Absyn
+import Absyn
 import qualified Comparison
 
 import qualified Data.Char as Char
 import qualified Data.List.NonEmpty as NE
 import Test.SmallCheck.Series
 import qualified Test.SmallCheck.Series as SS
-import qualified Data.Text                        as T
+import qualified Data.Text as T
 -- DEBUG
 import Debug.Trace
+import Data.Proxy (Proxy(Proxy))
 
 
 traceM' :: (Monad m, Show b) => m b -> m b
@@ -32,8 +37,8 @@ traceM' mb = do
 varName :: Monad m => Series m T.Text
 varName = return "a"
 
-fieldName :: Monad m => Series m T.Text
-fieldName = return "A"
+fieldName :: Monad m => Series m Expr
+fieldName = return $ Literal . FieldName $ "A"
 
 someString :: Monad m => Series m T.Text
 someString = return "hello"
@@ -55,85 +60,81 @@ camelCaseText = do
     let (firstChar : remainingChars) = nonEmptyString
     return $ T.pack (Char.toLower firstChar : remainingChars :: String)
 
-instance (Monad m, Serial m a) => Serial m (Absyn.VarOr a) where
-    series = varOr SS.series
-
-varOr :: Monad m => Series m a -> Series m (Absyn.VarOr a)
+varOr :: Monad m => Series m Expr -> Series m Expr
 varOr ss =
-    (Absyn.Var <$> varName)
-        \/ (Absyn.NotVar <$> ss)
+    (Var <$> varName)
+        \/ ss
 
-instance Monad m => Serial m Absyn.RuleExpr where
+instance Monad m => Serial m RuleExpr where
     series =
         let ruleExprSeries = SS.series
             nonEmptyRule = lengthTwoList ruleExprSeries
         in
-        (Absyn.Let <$> varName <*> SS.series)
+        (Let <$> varName <*> SS.series)
             -- self-recursive
-            \/ (Absyn.Forall <$> SS.series <*> nonEmptyRule)
+            \/ (Forall <$> SS.series <*> nonEmptyRule)
             -- self-recursive
-            \/ (Absyn.If <$> SS.series <*> nonEmptyRule)
-            \/ (Absyn.Rule <$> SS.series)
+            \/ (If <$> SS.series <*> nonEmptyRule)
+            \/ (Rule <$> SS.series)
 
-varOrFieldName :: Monad m => Series m (Absyn.VarOr T.Text)
-varOrFieldName =
-    (Absyn.Var <$> varName)
-        \/ (Absyn.NotVar <$> fieldName)
-
-instance Monad m => Serial m Absyn.VarExpr where
+instance Monad m => Serial m Expr where
     series =
-        (Absyn.ValueExpr <$> SS.series)
-            \/ (Absyn.DataExpr <$> SS.series)
-            \/ (Absyn.BoolExpr <$> SS.series)
-
-instance Monad m => Serial m Absyn.ValueExpr where
-    series =
-        (Absyn.Literal <$> SS.series)
-            \/ (Absyn.GroupOp <$> SS.series)
+        (ValueExpr <$> SS.series)
+            \/ (DataExpr <$> SS.series)
+            \/ (BoolExpr <$> SS.series)
+            \/ (Literal <$> SS.series)
+            \/ (Var <$> varName)
 
 -- Part of 'ValueExpr', so further 'ValueExpr'
 --  must be constructed with decreased depth
-instance Monad m => Serial m Absyn.DataExpr where
+instance Monad m => Serial m DataExpr where
     series =
-        (Absyn.GroupBy <$> varOr fieldName <*> decDepth SS.series)
-            \/ (Absyn.Filter <$> SS.series <*> decDepth SS.series)
+        let dataExpr = decDepth $ expr (Proxy @DataExpr)
+        in (GroupBy <$> varOr dataExpr <*> decDepth (varOr fieldName))
+            \/ (Filter <$> varOr dataExpr <*> decDepth (expr (Proxy @BoolExpr)))
 
--- Part of 'ValueExpr', so further 'ValueExpr'
---  must be constructed with decreased depth
-instance Monad m => Serial m Absyn.GroupOp where
+instance Monad m => Serial m ValueExpr where
     series =
-        (Absyn.GroupCount <$> decDepth SS.series)
-            \/ (Absyn.PositionFold <$> SS.series <*> varOrFieldName <*> decDepth SS.series <*> decDepth SS.series)
+        let dataExpr = decDepth (exprOrVar (Proxy @DataExpr))
+            map' = Map <$> exprOrVar (Proxy @FieldName) <*> dataExpr
+        in (GroupCount <$> dataExpr)
+            \/ (FoldMap <$> SS.series <*> map')
+            \/ (Relative <$> decDepth SS.series <*> decDepth (exprOrVar (Proxy @ValueExpr)))
 
 -- Part of 'ValueExpr' via 'DataExpr', so further 'ValueExpr'
 --  must be constructed with decreased depth
-instance Monad m => Serial m Absyn.BoolExpr where
+instance Monad m => Serial m BoolExpr where
     series =
-        (Absyn.Comparison <$> SS.series <*> SS.series <*> SS.series)
-            \/ (Absyn.And <$> decDepth SS.series <*> decDepth SS.series)
-            \/ (Absyn.Or <$> decDepth SS.series <*> decDepth SS.series)
-            \/ (Absyn.Not <$> decDepth SS.series)
+        let comparable = decDepth $ expr (Proxy @ValueExpr) \/ expr (Proxy @Literal)
+            boolExpr = decDepth $ expr (Proxy @BoolExpr)
+        in (Comparison <$> varOr comparable <*> decDepth SS.series <*> varOr comparable)
+            \/ (And <$> boolExpr <*> boolExpr)
+            \/ (Or <$> boolExpr <*> boolExpr)
+            \/ (Not <$> boolExpr)
 
-instance Monad m => Serial m Absyn.Literal where
+instance Monad m => Serial m Literal where
     series =
-        (Absyn.Percent <$> SS.series)
-            \/ (Absyn.FieldName <$> fieldName)
-            \/ (Absyn.FieldValue <$> SS.series)
+        (Percent <$> SS.series)
+            \/ (FieldName <$> SS.series)
+            \/ (FieldValue <$> SS.series)
 
-instance Monad m => Serial m Absyn.PositionFold
+instance Monad m => Serial m Fold
 instance Monad m => Serial m Comparison.BoolCompare
 
-instance Monad m => Serial m Absyn.FieldValue where
+instance Monad m => Serial m FieldName where
+    series = return "A"
+
+instance Monad m => Serial m FieldValue where
     series =
-        (Absyn.Number <$> SS.series)
-            \/ (Absyn.String <$> someString)
-            \/ (Absyn.Bool <$> return True)
-            \/ (Absyn.Bool <$> return False)
+        (Number <$> SS.series)
+            \/ (String <$> someString)
+            \/ (Bool <$> return True)
+            \/ (Bool <$> return False)
 
-instance Monad m => Serial m Absyn.Number where
-    series = return $ Absyn.fromReal (1.0 :: Double)
+instance Monad m => Serial m Number where
+    series = return $ fromReal (1.0 :: Double)
 
-instance Monad m => Serial m (NE.NonEmpty Absyn.RuleExpr) where
+instance Monad m => Serial m (NE.NonEmpty RuleExpr) where
     series = NE.fromList <$> nonEmptyList
 
 lengthTwoList :: Monad m => Series m a -> Series m [a]
@@ -141,3 +142,33 @@ lengthTwoList series' = do
     first <- decDepth series'
     next <- decDepth $ decDepth series'
     return [] \/ return [first] \/ return (first : [next])
+
+-- Generate something that's inside a 'Expr' and toExpr it in a 'Expr'.
+-- Use with TypeApplications, e.g.: "expr (Proxy @DataExpr)"
+expr :: forall m a. (Serial m a, ToExpr a) => Proxy a -> Series m Expr
+expr _ = fmap toExpr (SS.series :: Series m a)
+
+exprOrVar :: (Serial m a, ToExpr a) => Proxy a -> Series m Expr
+exprOrVar a = varOr (expr a)
+
+class ToExpr a where
+    toExpr :: a -> Expr
+
+instance ToExpr DataExpr where
+    toExpr = DataExpr
+
+instance ToExpr ValueExpr where
+    toExpr = ValueExpr
+
+instance ToExpr BoolExpr where
+    toExpr = BoolExpr
+
+instance ToExpr Literal where
+    toExpr = Literal
+
+instance ToExpr FieldValue where
+    toExpr = Literal . FieldValue
+
+instance ToExpr FieldName where
+    toExpr = Literal . FieldName
+

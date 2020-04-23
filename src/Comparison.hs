@@ -24,7 +24,7 @@ data BoolCompare
     | Gt
     | LtEq
     | GtEq
-        deriving (Eq, Show, Read, Generic, Data)
+        deriving (Eq, Show, Read, Generic, Data, Ord)
 
 -- | Used by pretty-printer
 valueToString :: [(BoolCompare, Text)]

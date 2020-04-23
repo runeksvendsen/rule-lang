@@ -8,7 +8,7 @@ module LangPrelude
 , module CM
 , module Maybe
 , module Text
-, module Map
+, module HashMap
 , module NonEmpty
 , module Conv
 , module Generic
@@ -17,6 +17,7 @@ module LangPrelude
 , module Void
 , module List
 , module Data
+, module String
 )
 where
 
@@ -25,7 +26,7 @@ import           Control.Monad            as CM
 import           Data.Maybe               as Maybe    hiding ()
 import           Data.Text                as Text     (Text)
 import           Text.Printf              as Printf
-import           Data.HashMap.Strict      as Map      (HashMap, lookup, member)
+import           Data.HashMap.Strict      as HashMap      (HashMap, lookup, member)
 import qualified Data.HashMap.Strict      as M
 import           Data.List.NonEmpty       as NonEmpty (NonEmpty, NonEmpty((:|)), (<|), cons, fromList)
 import           Protolude.Conv           as Conv
@@ -37,29 +38,29 @@ import           Data.Void                as Void
 import           Data.List                as List     (foldl')
 import qualified Data.List.NonEmpty       as NE
 import           Data.Data                as Data
+import           Data.String              as String   (IsString(fromString))
+import qualified Data.List.NonEmpty as NE (nonEmpty)
 
-
-type Map = HashMap
 
 show' :: Show a => a -> Text
 show' = toS . show
 
-emptyMap :: Map k v
+emptyMap :: HashMap k v
 emptyMap = M.empty
 
 insert
     :: Groupable k
-    => Map k v
+    => HashMap k v
     -> k
     -> v
-    -> Map k v
+    -> HashMap k v
 insert env key value = M.insert key value env
 
 nonEmpty :: a -> NonEmpty a
 nonEmpty item = item :| []
 
 neConcat :: NonEmpty (NonEmpty a) -> NonEmpty a
-neConcat = NE.fromList . concat . fmap NE.toList
+neConcat = fromMaybe (error "empty non-empty list") . NE.nonEmpty . concat . fmap NE.toList
 
 consMaybeNE :: a -> Maybe (NonEmpty a) -> Maybe (NonEmpty a)
 consMaybeNE item Nothing     = Just (item :| [])

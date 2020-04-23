@@ -1,5 +1,6 @@
 import Prelude
-import qualified Unit
+import qualified Unit.Parse
+import qualified Unit.PrintParse
 import qualified Spec.Parse
 import Orphans ()
 import Test.Tasty
@@ -9,7 +10,9 @@ import Test.Hspec.Runner
 
 main :: IO ()
 main = do
-    Unit.test
+    Unit.Parse.main
+    Unit.PrintParse.main
+    -- hspecWith defaultConfig { configSmallCheckDepth = scDepth }  Spec.Parse.spec
     defaultMain $ localOption (SC.SmallCheckDepth scDepth) Spec.Parse.scProps
   where
    scDepth = 2

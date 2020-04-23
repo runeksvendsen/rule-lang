@@ -3,16 +3,14 @@
 module Absyn
 ( -- * Abstract syntax
   RuleExpr(..)
+, Expr(..)
 , DataExpr(..)
 , FieldValue(..)
 , BoolExpr(..)
 , ValueExpr(..)
-, VarExpr(..)
-, GroupOp(..)
 , Literal(..)
-, PositionFold(..)
-, VarOr(..)
-  -- * Value types
+, Fold(..)
+  -- * Re-exports (literals)
 , FieldName
 , Number
 , fromReal
@@ -26,68 +24,73 @@ import Types
 import Comparison                           as Comparison
 
 
--- | Either a variable reference (of type 'a') or an actual expression
-data VarOr a
-    = Var Text
-    | NotVar a
-    deriving (Eq, Show, Generic, Data)
-
 -- | The result of evaluating a 'ValueExpr'
 data Literal
     = Percent Number
-    | FieldName Text            -- the name of a field in a Position
+    | FieldName FieldName            -- the name of a field in a Position
     | FieldValue FieldValue     -- the contents of a field in a Position
         deriving (Show, Generic, Data)
 
 data ValueExpr
-    = Literal Literal
-    | GroupOp GroupOp
-        deriving (Eq, Show, Generic, Data)
+    -- Count the number of groups
+    = GroupCount Expr
+    | FoldMap Fold Expr
+    | Relative Expr Expr
+        deriving (Eq, Show, Ord, Generic, Data)
 
-data BoolExpr
-    = Comparison (VarOr ValueExpr) BoolCompare (VarOr ValueExpr)    -- ^ compare two things
-    | And (VarOr BoolExpr) (VarOr BoolExpr)                         -- ^ logical AND
-    | Or (VarOr BoolExpr) (VarOr BoolExpr)                          -- ^ logical OR
-    | Not (VarOr BoolExpr)                        -- ^ logical NOT
-        deriving (Eq, Show, Generic, Data)
-
-data DataExpr
-    = GroupBy (VarOr FieldName) (VarOr DataExpr)    -- ^ (groupingField :: Literal FieldName) (input :: DataExpr)
-    | Filter BoolExpr (VarOr DataExpr)              -- ^ comparison (input :: DataExpr)
-        deriving (Eq, Show, Generic, Data)
-
-data GroupOp
-    -- (grouping :: DataExpr)
-    = GroupCount (VarOr DataExpr)
-    -- (foldType :: PositionFold) (fieldName :: FieldName) (input :: DataExpr) (relative :: Maybe DataExpr)
-    | PositionFold PositionFold (VarOr FieldName) (VarOr DataExpr) (Maybe (VarOr DataExpr))
-    -- NB: does not support a relative of a relative, e.g.:
-    --  "(sum Value of x1 relative to x2) relative to (sum Value of y1 relative to y2)"
-        deriving (Eq, Show, Generic, Data)
-
--- [Position] -> 'Number'
-data PositionFold =
-      SumOver           -- (+)
-    | Average           -- (+ /)
-    | Max               -- (Order)
-    | Min               -- (Order)
+data Fold
+    -- Required operations:
+    = Sum       -- (+)
+    | Average   -- (+ /)
+    | Max       -- (==, >)
+    | Min       -- (==, >)
         deriving (Eq, Ord, Generic, Show, Data)
 
-type VarName = Text
+data BoolExpr
+    = Comparison Expr BoolCompare Expr  -- ^ compare two things
+    | And Expr Expr                     -- ^ logical AND
+    | Or Expr Expr                      -- ^ logical OR
+    | Not Expr                          -- ^ logical NOT
+        deriving (Eq, Show, Ord, Generic, Data)
+
+data DataExpr
+    = GroupBy Expr Expr -- ^ (input :: DataExpr) (groupingField :: Literal FieldName)
+    | Filter Expr Expr  -- ^ (input :: DataExpr) (comparison :: BoolExpr)
+        deriving (Eq, Show, Ord, Generic, Data)
 
 -- rhs of let-binding
-data VarExpr
-    = ValueExpr ValueExpr
-    | BoolExpr BoolExpr
+data Expr
+    = Literal Literal
+    | ValueExpr ValueExpr
+    | BoolExpr BoolExpr
     | DataExpr DataExpr
-        deriving (Eq, Show, Generic, Data)
+    -- | A "map" over a tree ('DataExpr').
+    --   E.g. 'Map (Literal $ FieldName "Value") (Var "Portfolio")
+    --     transforms a Position in the leaf of the tree (resulting
+    --     from evaluating 'Var "Portfolio"') into the "Value"
+    --     property of that Position.
+    | Map Expr Expr
+    | Var Text
+        deriving (Eq, Show, Ord, Generic, Data)
 
 data RuleExpr
-    = Let VarName VarExpr
-    | Forall (VarOr DataExpr) [RuleExpr]  -- ^ (input :: DataExpr) scope
-    | If (VarOr BoolExpr) [RuleExpr]
-    | Rule (VarOr BoolExpr)              -- ^ a condition that must be true
-        deriving (Eq, Show, Generic, Data)
+    = Let Text Expr
+    | Forall Expr [RuleExpr]  -- ^ (input :: DataExpr) scope
+    | If Expr [RuleExpr]
+    | Rule Expr              -- ^ a condition that must be true
+        deriving (Eq, Show, Ord, Generic, Data)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 -- #### TYPE CLASS INSTANCES #### --
@@ -101,7 +104,6 @@ instance Eq Literal where
 -- TODO: static check of invalid comparisons
 instance Ord Literal where
     (Percent a) `compare` (Percent b) = a `compare` b
-    (FieldName a) `compare` (FieldName b) = a `compare` b -- TODO: do we need this?
     (FieldValue a) `compare` (FieldValue b) = a `compare` b
     compare a b = error $ "Invalid comparison: " ++ show (a, b)
 
@@ -110,7 +112,15 @@ instance Ord FieldValue where
     -- Below throws an error
     compare a b = error $ "Field comparison not implemented: " ++ show (a,b)
 
-instance Hashable PositionFold
+instance Hashable Fold
+instance Hashable DataExpr
+instance Hashable Expr
+instance Hashable BoolExpr
+-- instance Hashable VarExpr
+instance Hashable ValueExpr
+-- instance Hashable  a => Hashable (Map a)
+instance Hashable Literal
+instance Hashable BoolCompare
 
 
 
@@ -127,9 +137,9 @@ instance Hashable PositionFold
 
     let foreignCountrySecurities =                                                      -- GroupBy "Country:" $: Filter (FilterPos $ PosComparison "Country" NEq "DK")
             portfolio grouped by Country: where Country <> Dk
-    let dirtyValueForeignSecurities =                                                   -- PositionFold SumOver "DirtyValue" (Var "foreignCountrySecurities")
+    let dirtyValueForeignSecurities =                                                   -- TreeFold Sum "DirtyValue" (Var "foreignCountrySecurities")
             sum over DirtyValue of foreignCountrySecurities
-    let relativeDirtyValueForeignSecurities =                                           -- Relative (Var "dirtyValueForeignSecurities") (PositionFold SumOver "DirtyValue" (Var "Portfolio"))
+    let relativeDirtyValueForeignSecurities =                                           -- Relative (Var "dirtyValueForeignSecurities") (TreeFold Sum "DirtyValue" (Var "Portfolio"))
             dirtyValueForeignSecurities relative to sum over DirtyValue of Portfolio
     let numberOfForeignCountries = groupCount foreignCountrySecurities                  -- GroupCount (Var "foreignCountrySecurities")
 

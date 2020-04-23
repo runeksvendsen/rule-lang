@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 163c0209688c30f3101df0505d52b92bef152793d3941ab4357bb8d79d861913
+-- hash: cf3ef4d382caccddcbaa00a0c80628964623ca764799ff32fd57f575ce177c86
 
 name:           rule-lang
 version:        0.1.0.0
@@ -25,6 +25,7 @@ library
       Absyn
       Comparison
       Eval
+      Examples.Rules
       LangPrelude
       Parse
       Pretty
@@ -44,7 +45,9 @@ library
     , errors
     , hashable
     , megaparsec
+    , parser-combinators
     , parsers
+    , pretty-show
     , protolude
     , template-haskell
     , text
@@ -78,7 +81,8 @@ test-suite rule-lang-test
   other-modules:
       Orphans
       Spec.Parse
-      Unit
+      Unit.Parse
+      Unit.PrintParse
       Paths_rule_lang
   hs-source-dirs:
       test
@@ -91,7 +95,7 @@ test-suite rule-lang-test
     , hspec-expectations-pretty-diff
     , hspec-smallcheck
     , megaparsec
-    , neat-interpolation
+    , pretty-show
     , rule-lang
     , smallcheck
     , tasty
