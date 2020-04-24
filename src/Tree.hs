@@ -30,6 +30,15 @@ termNodes tree =
     go accum (Node (NodeData _ subTree)) = concat $ map (go accum) subTree
     go accum (TermNode (NodeData _ leaf)) = leaf : accum
 
+-- removeEmpty :: Monoid leafLabel => Tree leafLabel -> Maybe (Tree leafLabel)
+-- removeEmpty tree =
+--     go Nothing tree
+--   where
+--     go accum (Node (NodeData nodeData subTree)) = Node $ NodeData nodeData (filter (not . isEmpty) subTree)
+--     go accum (TermNode (NodeData _ leaf)) = undefined
+--     isEmpty (Node (NodeData _ subTree)) = all (== True) (map isEmpty subTree)
+--     isEmpty (TermNode (NodeData _ leaf)) = leaf == mempty
+
 -- Accumulate a state for each path from the root node to a TermNode.
 -- Add the accumulated state to the TermNode label.
 rootToLeafFold

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cf3ef4d382caccddcbaa00a0c80628964623ca764799ff32fd57f575ce177c86
+-- hash: ed74dc0906f7865571e731e30e64d75a62e0b5bb55aaab60fd6ffb501726fd2e
 
 name:           rule-lang
 version:        0.1.0.0
@@ -81,15 +81,18 @@ test-suite rule-lang-test
   other-modules:
       Orphans
       Spec.Parse
+      Unit.Eval
       Unit.Parse
       Unit.PrintParse
       Paths_rule_lang
   hs-source-dirs:
       test
   default-extensions: OverloadedStrings StandaloneDeriving DeriveGeneric NoImplicitPrelude FlexibleContexts
-  ghc-options: -Wall
+  ghc-options: -Wall -O2
   build-depends:
-      base >=4.7 && <5
+      QuickCheck
+    , aeson
+    , base >=4.7 && <5
     , hedgehog
     , hspec
     , hspec-expectations-pretty-diff
@@ -102,4 +105,5 @@ test-suite rule-lang-test
     , tasty-smallcheck
     , text
     , transformers
+    , unordered-containers
   default-language: Haskell2010

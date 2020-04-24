@@ -27,7 +27,7 @@ forall issuers {
    require sum .Value of Issuer relative to portfolioValue <= 10%
 }
 let issuersAbove5Pct = issuers where (sum .Value of Issuer relative to portfolioValue > 5%)
-require sum .Value of issuersAbove5Pct <= 40%
+require sum .Value of issuersAbove5Pct relative to portfolioValue <= 40%
     |]
 
 ruleII :: NonEmpty Absyn.RuleExpr

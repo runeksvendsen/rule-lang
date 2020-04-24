@@ -1,5 +1,8 @@
 module Eval
 ( eval
+, mkInitialEnv
+  -- * Re-exports
+, Position
 )
 where
 
@@ -16,6 +19,12 @@ import qualified Data.List.NonEmpty as NE
 -- The first item is the innermost scope.
 type Env a = NE.NonEmpty (Text, a)
 
+-- | Create the initial variable environment from
+--     a list of the positions in the portfolio.
+mkInitialEnv :: [Position] -> Env RuntimeValue
+mkInitialEnv portfolioPositions =
+    nonEmpty ("Portfolio", Tree $ TermNode $ NodeData ("Portfolio", "") portfolioPositions)
+
 -- The result of evaluating a 'Expr'
 data RuntimeValue
     = Constant Literal                  -- ValueExpr/BoolExpr
@@ -25,7 +34,7 @@ data RuntimeValue
 
 -- | Returns 'False' if a rule has been violated,
 --    otherwise 'True'
-eval :: Env RuntimeValue   -- Evaluated variable environment
+eval :: Env RuntimeValue    -- Evaluated variable environment
      -> [RuleExpr]          -- Rule
      -> Bool                -- Success/failure (True/False)
 eval initialEnv ruleExprs' =
@@ -50,28 +59,6 @@ eval initialEnv ruleExprs' =
     go (env, success) (Rule varOrBoolExpr) =
         (env, groupBoolOrCrash env varOrBoolExpr && success)
 
-evalDataExpr
-    :: Env RuntimeValue
-    -> DataExpr
-    -> Tree [Position]
-evalDataExpr env dataExpr =
-    case dataExpr of
-        GroupBy varOrFieldName varOrDataExpr ->
-            let tree = treeOrCrash env varOrDataExpr
-                fieldName = fieldNameOrCrash env varOrFieldName
-            in addGrouping posLookup fieldName tree
-        Filter boolExpr varOrDataExpr ->
-            let filterPos env' =
-                    case boolOrCrash env' boolExpr of
-                        -- Group comparison: either remove all or no positions
-                        Left b -> const b
-                        -- Position comparison: remove/keep on a per-position basis
-                        Right posFun -> posFun
-                envTree = rootToLeafFold (\env' tree' (fieldName, _) -> insert' env' (toS fieldName) (Tree tree'))
-                          env
-                          (treeOrCrash env varOrDataExpr)
-            in mapTermNode (\(positions, env') -> filter (filterPos env') positions) envTree
-
 evalExpr
     :: Env RuntimeValue
     -> Expr
@@ -82,6 +69,30 @@ evalExpr env varExpr =
         ValueExpr valueExpr -> Constant $ evalValueExpr env valueExpr
         BoolExpr boolExpr -> Constant $ FieldValue $ Bool $ groupBoolOrCrash env (BoolExpr boolExpr)
         DataExpr dataExpr -> Tree $ evalDataExpr env dataExpr
+        Map fieldName dataExpr -> MappedTree $ evalMap env (fieldName, dataExpr)
+        Var name -> lookup' name env
+
+evalDataExpr
+    :: Env RuntimeValue
+    -> DataExpr
+    -> Tree [Position]
+evalDataExpr env dataExpr =
+    case dataExpr of
+        GroupBy varOrDataExpr varOrFieldName ->
+            let tree = treeOrCrash env varOrDataExpr
+                fieldName = fieldNameOrCrash env varOrFieldName
+            in addGrouping posLookup fieldName tree
+        Filter varOrDataExpr boolExpr ->
+            let filterPos env' =
+                    case boolOrCrash env' boolExpr of
+                        -- Group comparison: either remove all or no positions
+                        Left b -> const b
+                        -- Position comparison: remove/keep on a per-position basis
+                        Right posFun -> posFun
+                envTree = rootToLeafFold (\env' tree' (fieldName, _) -> insert' env' (toS fieldName) (Tree tree'))
+                          env
+                          (treeOrCrash env varOrDataExpr)
+            in mapTermNode (\(positions, env') -> filter (filterPos env') positions) envTree
 
 -- Fails on relative comparisons that is not between two 'Number' or two 'Percent'
 evalValueExpr :: Env RuntimeValue -> ValueExpr -> Literal
@@ -137,19 +148,21 @@ evalBoolExpr env boolExpr =
             --  for order (e.g. 'Percent' and 'Number').
             -- TODO: if two incompatible literals are compared for *equality* then
             --  'False' is returned (don't use 'Eq' for equality comparison)
-                lit1 = getVarExpr env varOrValueExpr1
-                lit2 = getVarExpr env varOrValueExpr2
+                litA = getVarExpr env varOrValueExpr1
+                litB = getVarExpr env varOrValueExpr2
             -- Position comparison: FieldName & FieldValue
             -- Group comparison: everything else
-            in case (lit1, lit2) of
+            in case (litA, litB) of
+                -- NB: will fail in case two different kinds of values are compared, e.g.
+                --  a 'Number' and a 'Percent'
                 (Constant (FieldName fieldName), Constant (FieldValue fieldValue)) -> Right $
                     \pos -> posLookup fieldName pos `compareFun` fieldValue
                 (Constant (FieldValue fieldValue), Constant (FieldName fieldName)) -> Right $
                     \pos -> posLookup fieldName pos `compareFun` fieldValue
                 (Constant cstA, Constant cstB) -> Left $
-                    -- NB: will fail in case two different kinds of values are compared, e.g.
-                    --  a 'Number' and a 'Percent'
                     cstA `compareFun` cstB
+                _ ->
+                    error $ "Invalid comparison: " ++ show (litA, litB)
         And varOrBoolExpr1 varOrBoolExpr2 ->
             binopCompose (&&) (boolOrCrash env varOrBoolExpr1) (boolOrCrash env varOrBoolExpr2)
         Or varOrBoolExpr1 varOrBoolExpr2 ->
@@ -206,17 +219,17 @@ lookupOrEval
     -> Expr                                     -- ^ Either a variable (pointing to a 'RuntimeValue' in the variable environment)
                                                 --     or an expression that needs to be evaluated
     -> b
-lookupOrEval expectedType eval' fromRuntimeValue extract env varOr =
-    case varOr of
-        notVar ->
-            case extract notVar of
-                Just expr -> eval' env expr
-                Nothing -> typeError expectedType notVar
+lookupOrEval expectedType eval' fromRuntimeValue extract env expr =
+    case expr of
         Var varName ->
             let runtimeVal = lookup' varName env in
             case fromRuntimeValue runtimeVal of
                 Just val -> val
                 Nothing -> typeError expectedType runtimeVal
+        notVar ->
+            case extract notVar of
+                Just expr -> eval' env expr
+                Nothing -> typeError expectedType notVar
 
 treeOrCrash :: Env RuntimeValue -> Expr -> Tree [Position]
 treeOrCrash =
@@ -237,14 +250,17 @@ boolOrCrash =
     fromLitOrTree _ = Nothing
 
 groupBoolOrCrash :: Env RuntimeValue -> Expr -> Bool
-groupBoolOrCrash env (BoolExpr boolExpr) =
-    case evalBoolExpr env boolExpr of
-        Left b -> b
-        Right _ -> error $ "Expected " ++  "group comparison" ++ ", found: " ++ "position comparison"
-groupBoolOrCrash env (Var varName) = fromLitOrTree $ lookup' varName env
+groupBoolOrCrash =
+    lookupOrEval "Boolean" evalGroupBoolExpr fromLitOrTree fromExpr
   where
-    fromLitOrTree (Constant (FieldValue (Bool boolExpr))) = boolExpr
-    fromLitOrTree other = typeError "Boolean" other
+    evalGroupBoolExpr env expr =
+        case evalBoolExpr env expr of
+            Left b -> b
+            Right _ -> typeError "group comparison" "position comparison"
+    fromExpr (BoolExpr boolExpr) = Just boolExpr
+    fromExpr _ = Nothing
+    fromLitOrTree (Constant (FieldValue (Bool boolExpr))) = Just boolExpr
+    fromLitOrTree _ = Nothing
 
 fieldNameOrCrash :: Env RuntimeValue -> Expr -> FieldName
 fieldNameOrCrash =

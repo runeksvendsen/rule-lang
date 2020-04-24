@@ -68,5 +68,8 @@ tests:
       - hspec-expectations-pretty-diff
       - hedgehog
       - pretty-show
-    # ghc-options:
-    #   - -O2
+      - unordered-containers
+      - aeson # For generating test positions
+      - QuickCheck
+    ghc-options:
+      - -O2

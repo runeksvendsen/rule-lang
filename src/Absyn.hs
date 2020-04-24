@@ -3,6 +3,7 @@
 module Absyn
 ( -- * Abstract syntax
   RuleExpr(..)
+, Rule
 , Expr(..)
 , DataExpr(..)
 , FieldValue(..)
@@ -72,6 +73,8 @@ data Expr
     | Map Expr Expr
     | Var Text
         deriving (Eq, Show, Ord, Generic, Data)
+
+type Rule = NonEmpty RuleExpr
 
 data RuleExpr
     = Let Text Expr
