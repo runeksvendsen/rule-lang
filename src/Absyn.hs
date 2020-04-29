@@ -25,7 +25,6 @@ import Types
 import Comparison                           as Comparison
 
 
--- | The result of evaluating a 'ValueExpr'
 data Literal
     = Percent Number
     | FieldName FieldName            -- the name of a field in a Position
@@ -74,7 +73,7 @@ data Expr
     | Var Text
         deriving (Eq, Show, Ord, Generic, Data)
 
-type Rule = NonEmpty RuleExpr
+type Rule = [RuleExpr]
 
 data RuleExpr
     = Let Text Expr

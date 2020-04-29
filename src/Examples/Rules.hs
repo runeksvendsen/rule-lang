@@ -9,7 +9,7 @@ import qualified Absyn
 import QuasiQuote (rulelang)
 
 
-allRules :: [(NonEmpty Absyn.RuleExpr, String)]
+allRules :: [([Absyn.RuleExpr], String)]
 allRules =
     [
       (ruleI, "I")
@@ -18,7 +18,7 @@ allRules =
     , (ruleIV, "IV")
     ]
 
-ruleI :: NonEmpty Absyn.RuleExpr
+ruleI :: [Absyn.RuleExpr]
 ruleI =
     [rulelang|
 let issuers = Portfolio grouped by .Issuer
@@ -30,7 +30,7 @@ let issuersAbove5Pct = issuers where (sum .Value of Issuer relative to portfolio
 require sum .Value of issuersAbove5Pct relative to portfolioValue <= 40%
     |]
 
-ruleII :: NonEmpty Absyn.RuleExpr
+ruleII :: [Absyn.RuleExpr]
 ruleII =
     [rulelang|
 let issuers = Portfolio grouped by .Issuer
@@ -45,7 +45,7 @@ forall issuers {
 }
     |]
 
-ruleIII :: NonEmpty Absyn.RuleExpr
+ruleIII :: [Absyn.RuleExpr]
 ruleIII =
     [rulelang|
 let govtSecurities = Portfolio where (.InstrumentType == "GovernmentBond" OR .InstrumentType == "StateBond")
@@ -62,7 +62,7 @@ forall govtSecurities grouped by .Issuer {
 }
     |]
 
-ruleIV :: NonEmpty Absyn.RuleExpr
+ruleIV :: [Absyn.RuleExpr]
 ruleIV =
     [rulelang|
 let otcPositions = Portfolio where (.InstrumentType == "OTC")

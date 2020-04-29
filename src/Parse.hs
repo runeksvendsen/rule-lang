@@ -3,7 +3,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Parse
-( ruleParser
+( ruleParserDoc
 , pExpr
 , module Absyn
 , M.parse
@@ -16,13 +16,11 @@ import Types
 import Absyn as Absyn
 
 import Control.Applicative (many, (<|>))
-import Text.Megaparsec ((<?>))
 import qualified Text.Megaparsec as M
 import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.Megaparsec.Char
 import qualified Text.Megaparsec.Debug as D
-import qualified Control.Monad.Combinators.Expr as C
-import qualified Control.Applicative.Combinators.NonEmpty as CN
+import Control.Monad.Combinators.Expr (Operator(Prefix, InfixL, InfixN), makeExprParser)
 
 import qualified Data.Char as C
 import qualified Data.Text as T
@@ -58,8 +56,18 @@ keywords =
 -- ######    rule    ######
 -- ########################
 
-ruleParser :: Parser (NonEmpty RuleExpr)
-ruleParser = scn *> CN.some (debug "pRuleExpr-NEWLINE" $ skipTrailingNewline pRuleExpr) <* M.eof
+-- 1) Optional initial whitespace (including newlines)
+-- 2) zero or more newline-separated rules
+-- 3) <end of file>
+ruleParserDoc :: Parser [RuleExpr]
+ruleParserDoc = scn *> rules <* M.eof
+
+-- Zero or more RuleExpr separated by one or more newlines
+rules :: Parser [RuleExpr]
+rules =
+    many (skipTrailingNewline pRuleExpr)
+  where
+    skipTrailingNewline = L.lexeme scn
 
 
 -- ########################
@@ -73,30 +81,29 @@ pRuleExpr = debug "pRuleExpr" $
 pLet :: Parser RuleExpr
 pLet = do
     keyword "let"
-    varName <- skipTrailingWhitespace pDefineVar
+    varName <- lexeme pDefineVar
     keyword "="
-    expr <- skipTrailingWhitespace pExpr
+    expr <- lexeme pExpr
     return $ Let varName expr
 
 pForEach :: Parser RuleExpr
 pForEach = debug "pForEach" $ do
     keyword "forall"
-    dataExpr <- skipTrailingWhitespace pExpr
-    scope <- braces $ many (skipTrailingNewline pRuleExpr)
+    dataExpr <- lexeme pExpr
+    scope <- braces rules
     return $ Forall dataExpr scope
 
 pIf :: Parser RuleExpr
 pIf = debug "pIf" $ do
     keyword "if"
-    varOrBoolExpr <- skipTrailingWhitespace pExpr
-    scope <- braces $ many (skipTrailingNewline pRuleExpr)
+    varOrBoolExpr <- lexeme pExpr
+    scope <- braces rules
     return $ If varOrBoolExpr scope
 
 pRule :: Parser RuleExpr
 pRule = debug "pRule" $ do
     keyword "require"
     Rule <$> pExpr
-
 
 -- ###################
 -- ###### Expr ######
@@ -106,35 +113,32 @@ pExpr :: Parser Expr
 pExpr =
     expr
   where
-    expr = C.makeExprParser term table <?> "everythingExpr"
-    term = skipTrailingWhitespace (parens expr) <|> pTerm <?> "everythingTerm"
-    pTerm = skipTrailingWhitespace $ Literal <$> pLiteral <|> Var <$> pVarReferece
+    expr = makeExprParser term table
+    term = lexeme $ parens expr <|> pTerm
+    pTerm = Literal <$> pLiteral <|> Var <$> pVarReferece
     table =
-        [ [ C.InfixL $ keyword "where" >> return (\a -> DataExpr . Filter a)
-          , C.InfixL $ keyword "grouped" >> keyword "by" >> return (\a -> DataExpr . GroupBy a)
+        [ [ InfixL $ keyword "where" >> return (\a -> DataExpr . Filter a)
+          , InfixL $ keyword "grouped" >> keyword "by" >> return (\a -> DataExpr . GroupBy a)
           ]
-        , [ C.InfixN $ keyword "of" >> return Map ]
-        , [ prefix "count" (ValueExpr . GroupCount)
-          , prefix "sum" (ValueExpr . FoldMap Sum)
-          , prefix "average" (ValueExpr . FoldMap Average)
-          , prefix "minimum" (ValueExpr . FoldMap Min)
-          , prefix "maximum" (ValueExpr . FoldMap Max)
+        , [ InfixN $ keyword "of" >> return Map ]
+        , [ Prefix $ keyword "count" >> return (ValueExpr . GroupCount)
+          , Prefix $ keyword "sum" >> return (ValueExpr . FoldMap Sum)
+          , Prefix $ keyword "average" >> return (ValueExpr . FoldMap Average)
+          , Prefix $ keyword "minimum" >> return (ValueExpr . FoldMap Min)
+          , Prefix $ keyword "maximum" >> return (ValueExpr . FoldMap Max)
           ]
-        , [ C.InfixL $ keyword "relative" >> keyword "to" >> return (\a -> ValueExpr . Relative a)]
-        , [ binary' "==" (mkComp Eq)
-          , binary' "!=" (mkComp NEq)
-          , binary' ">" (mkComp Gt)
-          , binary' "<" (mkComp Lt)
-          , binary' ">=" (mkComp GtEq)
-          , binary' "<=" (mkComp LtEq)
+        , [ InfixL $ keyword "relative" >> keyword "to" >> return (\a -> ValueExpr . Relative a)]
+        , [ InfixN $ op "==" >> return (mkComp Eq)
+          , InfixN $ op "!=" >> return (mkComp NEq)
+          , InfixN $ op ">" >> return (mkComp Gt)
+          , InfixN $ op "<" >> return (mkComp Lt)
+          , InfixN $ op ">=" >> return (mkComp GtEq)
+          , InfixN $ op "<=" >> return (mkComp LtEq)
           ]
-        , [ prefix "NOT" (BoolExpr . Not) ]
-        , [ binary "AND" (\a -> BoolExpr . And a) ]
-        , [ binary "OR" (\a -> BoolExpr . Or a) ]
+        , [ Prefix $ keyword "NOT" >> return (BoolExpr . Not) ]
+        , [ InfixL $ keyword "AND" >> return (\a -> BoolExpr . And a) ]
+        , [ InfixL $ keyword "OR" >> return (\a -> BoolExpr . Or a) ]
         ]
-    binary  name f = C.InfixL  (f <$ L.symbol sc name)
-    prefix  name f = C.Prefix  (f <$ L.symbol sc name)
-    binary' name f = C.InfixN (f <$ op name)
     op n = L.lexeme sc $ M.try (Text.Megaparsec.Char.string n <* M.notFollowedBy (Text.Megaparsec.Char.char '='))
     mkComp numComp a b = BoolExpr $ Comparison a numComp b
 
@@ -172,25 +176,26 @@ pVarReferece = do
 pLiteral :: Parser Literal
 pLiteral = debug "pLiteral" $
         M.try pPercentage
-    <|> (FieldValue <$> pFieldValue)
+    <|> FieldValue <$> pFieldValue
     <|> FieldName <$> pFieldName
 
 -- | Field names begin with a "." followed by an upper case character
 --    followed by zero or more alphanumeric characters
 pFieldName :: Parser FieldName
 pFieldName = debug "FieldName" $ do
-    void $ Text.Megaparsec.Char.char '.'
-    word@(firstChar : remainingChars) <- toS <$> pVarReferece
-    if C.isUpper firstChar
-        then return (fromString $ toS word)
-        else failParse "Field name must being with upper case letter"
-                [toS $ C.toUpper firstChar : remainingChars]
+    varRef <- Text.Megaparsec.Char.char '.' *> pVarReferece
+    checkBeginChar (toS varRef)
+  where
+    checkBeginChar [] = error "BUG: pVarReferece returned empty string"
+    checkBeginChar word@(firstChar : remainingChars) =
+        if C.isUpper firstChar
+            then return (fromString $ toS word)
+            else failParse "Field name must being with upper case letter"
+                    [toS $ C.toUpper firstChar : remainingChars]
 
 pPercentage :: Parser Literal
-pPercentage = do
-    num <- pNumber
-    void $ Text.Megaparsec.Char.char '%'
-    return $ Percent num
+pPercentage = Percent <$>
+    pNumber <* Text.Megaparsec.Char.char '%'
 
 pFieldValue :: Parser FieldValue
 pFieldValue = debug "pFieldValue" $
@@ -200,8 +205,7 @@ pFieldValue = debug "pFieldValue" $
   where
     pBool = (pConstant "true" >> return True) <|> (pConstant "false" >> return False)
     pConstant c = debug "pConstant" $
-        skipTrailingNewline $
-            M.chunk c *> M.notFollowedBy Text.Megaparsec.Char.alphaNumChar
+        M.chunk c *> M.notFollowedBy Text.Megaparsec.Char.alphaNumChar
     pStringLiteral =
         Text.Megaparsec.Char.char '\"' *> M.manyTill L.charLiteral
             (Text.Megaparsec.Char.char '\"')
@@ -217,35 +221,24 @@ pNumber = debug "pNumber" $
 
 keyword :: Text -> Parser ()
 keyword input =
-    skipTrailingWhitespace $
+    lexeme $
         M.chunk input *> M.notFollowedBy Text.Megaparsec.Char.alphaNumChar
     -- "notFollowedBy" makes sure keyword-prefixed strings are not parsed as a keyword.
     -- E.g. "counterParty" shouldn't be parsed as "count" on a variable named "erParty",
     --   but as a variable named "counterParty".
 
 -- Parse an expression enclosed in parentheses.
-parens :: (M.MonadParsec e s m, M.Token s ~ Char) => m b -> m b
-parens p =
-    Text.Megaparsec.Char.char '(' *> p <* Text.Megaparsec.Char.char ')'
+parens :: Parser a -> Parser a
+parens = M.between
+    (symbol "(")
+    (symbol ")")
 
 -- Parse an expression enclosed in braces, discarding all whitespace
 --   before and after both the opening and closing brace.
 braces :: Parser a -> Parser a
-braces p = M.between
-    (discardSurroundingWhitespace $ Text.Megaparsec.Char.char '{')
-    (discardSurroundingWhitespace $ Text.Megaparsec.Char.char '}')
-    p
-  where
-    -- discard whitespace (including newlines) before and after
-    discardSurroundingWhitespace p' = scn >> p' >> scn
-
-debug :: Show a => String -> Parser a -> Parser a
-debug =
-    off
-  where
-    off = const id
-    on :: Show a => String -> Parser a -> Parser a
-    on = D.dbg
+braces = M.between
+    (scn *> L.symbol scn "{")
+    (scn *> L.symbol scn "}")
 
 -- Line comments start with //
 lineComment :: Parser ()
@@ -263,11 +256,13 @@ scn = L.space (void Text.Megaparsec.Char.spaceChar) lineComment blockComment
 sc :: Parser ()
 sc = L.space (void $ M.oneOf [' ', '\t']) lineComment blockComment
 
-skipTrailingWhitespace :: Parser a -> Parser a
-skipTrailingWhitespace = L.lexeme sc
+-- Parse a literal text string, ignoring trailing spaces/tabs
+symbol :: Text -> Parser Text
+symbol = L.symbol sc
 
-skipTrailingNewline :: Parser a -> Parser a
-skipTrailingNewline = L.lexeme scn
+-- Parse something and remove optional trailing tabs/spaces
+lexeme :: Parser a -> Parser a
+lexeme = L.lexeme sc
 
 -- | Report a parser error to the user,
 --    containing zero or more suggestions
@@ -279,3 +274,11 @@ failParse msg expected =
     M.failure (Just $ M.Label $ neText msg) (Set.fromList es)
   where
     es = map (M.Tokens . NE.fromList . T.unpack) expected
+
+debug :: Show a => String -> Parser a -> Parser a
+debug =
+    off
+  where
+    off = const id
+    on :: Show a => String -> Parser a -> Parser a
+    on = D.dbg

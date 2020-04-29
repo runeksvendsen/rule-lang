@@ -37,9 +37,9 @@ import qualified Data.Text                as T
 import           Data.Void                as Void
 import           Data.List                as List     (foldl')
 import qualified Data.List.NonEmpty       as NE
-import           Data.Data                as Data
+import           Data.Data                as Data     hiding (Prefix)
 import           Data.String              as String   (IsString(fromString))
-import qualified Data.List.NonEmpty as NE (nonEmpty)
+import qualified Data.List.NonEmpty       as NE (nonEmpty)
 
 
 show' :: Show a => a -> Text

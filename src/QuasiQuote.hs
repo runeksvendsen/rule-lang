@@ -13,8 +13,8 @@ import Language.Haskell.TH.Syntax (lift)
 import qualified Text.Megaparsec.Error
 
 
-parse' :: Text -> Either (Text.Megaparsec.Error.ParseErrorBundle Text Void) (NonEmpty RuleExpr)
-parse' = Parse.parse Parse.ruleParser ""
+parse' :: Text -> Either (Text.Megaparsec.Error.ParseErrorBundle Text Void) [RuleExpr]
+parse' = Parse.parse Parse.ruleParserDoc ""
 
 rulelang :: QuasiQuoter
 rulelang = QuasiQuoter {

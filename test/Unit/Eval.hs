@@ -15,7 +15,6 @@ import GHC.Generics (Generic)
 import Data.Maybe
 import Test.QuickCheck
 import Control.Monad (forM_)
-import Data.List.NonEmpty (toList)
 
 
 main :: IO ()
@@ -30,7 +29,7 @@ testRule numPositions (rule, name) = do
     testPositions <- generate $ vectorOf numPositions arbitrary
     let positions = map toHashMap testPositions
     let lbl = "Rule " <> name <> ": (" <> show numPositions <> ")"
-    let passed = Eval.eval (Eval.mkInitialEnv positions) (toList rule)
+    let passed = Eval.eval (Eval.mkInitialEnv positions) rule
     -- We're not interested in whether an arbitrary set of positions passes a rule,
     --  rather, we just want to catch runtime errors in the evaluator.
     quickCheck $ label lbl $ passed || True

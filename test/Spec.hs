@@ -12,9 +12,9 @@ import Test.Hspec.Runner
 main :: IO ()
 main = do
     Unit.Eval.main
-    -- Unit.Parse.main
-    -- Unit.PrintParse.main
-    -- hspecWith defaultConfig { configSmallCheckDepth = scDepth }  Spec.Parse.spec
+    Unit.Parse.main
+    Unit.PrintParse.main
+    hspecWith defaultConfig { configSmallCheckDepth = scDepth }  Spec.Parse.spec
     -- defaultMain $ localOption (SC.SmallCheckDepth scDepth) Spec.Parse.scProps
   where
    scDepth = 2

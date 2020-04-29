@@ -24,9 +24,9 @@ import qualified Test.Hspec.SmallCheck  as SC
 import Debug.Trace (trace)
 
 
-printParseRuleExpr :: NE.NonEmpty Parse.RuleExpr -> Either String String
+printParseRuleExpr :: [Parse.RuleExpr] -> Either String String
 printParseRuleExpr =
-    printParse (T.unlines . Pretty.ppLines "  ") Parse.ruleParser
+    printParse (T.unlines . Pretty.ppLines "  ") Parse.ruleParserDoc
 
 printParseExpr :: Parse.Expr -> Either String String
 printParseExpr =
