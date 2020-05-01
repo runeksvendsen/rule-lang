@@ -71,5 +71,6 @@ tests:
       - unordered-containers
       - aeson # For generating test positions
       - QuickCheck
+      - text-ansi # Terminal colors
     ghc-options:
       - -O2

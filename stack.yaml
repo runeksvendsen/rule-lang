@@ -1,1 +1,4 @@
 resolver: lts-14.0
+
+extra-deps:
+  - text-ansi-0.1.0@sha256:2112c437a4be5337a3e99b63aa05414bac03f1f6e6f5147048f9c9c5777a1d62,1389

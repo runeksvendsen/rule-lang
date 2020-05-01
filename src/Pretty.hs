@@ -62,7 +62,7 @@ ppValueExpr (Relative e1 e2) = T.unwords
 
 ppPositionFold :: Fold -> Text
 ppPositionFold Sum = "sum"
-ppPositionFold Average = "average"
+ppPositionFold Avg = "average"
 ppPositionFold Max = "maximum"
 ppPositionFold Min = "minimum"
 

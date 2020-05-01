@@ -123,7 +123,7 @@ pExpr =
         , [ InfixN $ keyword "of" >> return Map ]
         , [ Prefix $ keyword "count" >> return (ValueExpr . GroupCount)
           , Prefix $ keyword "sum" >> return (ValueExpr . FoldMap Sum)
-          , Prefix $ keyword "average" >> return (ValueExpr . FoldMap Average)
+          , Prefix $ keyword "average" >> return (ValueExpr . FoldMap Avg)
           , Prefix $ keyword "minimum" >> return (ValueExpr . FoldMap Min)
           , Prefix $ keyword "maximum" >> return (ValueExpr . FoldMap Max)
           ]

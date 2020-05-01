@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ed74dc0906f7865571e731e30e64d75a62e0b5bb55aaab60fd6ffb501726fd2e
+-- hash: ebb0cbf48e7f6025c3c1f0f5e494fbd8f8c9fc7aacc093a4f7b8531813a9584e
 
 name:           rule-lang
 version:        0.1.0.0
@@ -25,6 +25,7 @@ library
       Absyn
       Comparison
       Eval
+      Examples.Expr
       Examples.Rules
       LangPrelude
       Parse
@@ -104,6 +105,7 @@ test-suite rule-lang-test
     , tasty
     , tasty-smallcheck
     , text
+    , text-ansi
     , transformers
     , unordered-containers
   default-language: Haskell2010

@@ -27,12 +27,11 @@ import Comparison                           as Comparison
 
 data Literal
     = Percent Number
-    | FieldName FieldName            -- the name of a field in a Position
+    | FieldName FieldName       -- the name of a field in a Position
     | FieldValue FieldValue     -- the contents of a field in a Position
         deriving (Show, Generic, Data)
 
 data ValueExpr
-    -- Count the number of groups
     = GroupCount Expr
     | FoldMap Fold Expr
     | Relative Expr Expr
@@ -40,10 +39,10 @@ data ValueExpr
 
 data Fold
     -- Required operations:
-    = Sum       -- (+)
-    | Average   -- (+ /)
-    | Max       -- (==, >)
-    | Min       -- (==, >)
+    = Sum   -- (+)
+    | Avg   -- (+ /)
+    | Max   -- (==, >)
+    | Min   -- (==, >)
         deriving (Eq, Ord, Generic, Show, Data)
 
 data BoolExpr
@@ -73,8 +72,6 @@ data Expr
     | Var Text
         deriving (Eq, Show, Ord, Generic, Data)
 
-type Rule = [RuleExpr]
-
 data RuleExpr
     = Let Text Expr
     | Forall Expr [RuleExpr]  -- ^ (input :: DataExpr) scope
@@ -82,11 +79,24 @@ data RuleExpr
     | Rule Expr              -- ^ a condition that must be true
         deriving (Eq, Show, Ord, Generic, Data)
 
+-- A rule corresponds to a list of RuleExpr
+type Rule = [RuleExpr]
 
 
 
+-- ###############################
+-- ##### Report expressions ######
+-- ###############################
 
+-- Value expression
+valueExpr :: ValueExpr
+valueExpr = Relative
+    (ValueExpr (FoldMap Sum (Map (Literal (FieldName "Value")) (Var "Country"))))
+    (ValueExpr (FoldMap Sum (Map (Literal (FieldName "Value")) (Var "Portfolio"))))
 
+-- Boolean expression
+boolExpr :: BoolExpr
+boolExpr = Or (BoolExpr (Comparison (Var "a") Lt (Var "b"))) (BoolExpr (Comparison (Var "a") Eq (Var "b")))
 
 
 

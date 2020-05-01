@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module QuasiQuote
 ( rulelang
+, rulelangExpr
 )
 where
 
@@ -13,11 +14,24 @@ import Language.Haskell.TH.Syntax (lift)
 import qualified Text.Megaparsec.Error
 
 
-parse' :: Text -> Either (Text.Megaparsec.Error.ParseErrorBundle Text Void) [RuleExpr]
-parse' = Parse.parse Parse.ruleParserDoc ""
-
 rulelang :: QuasiQuoter
-rulelang = QuasiQuoter {
+rulelang =
+    mkQuasiQouter parse'
+  where
+    parse' = Parse.parse Parse.ruleParserDoc ""
+
+rulelangExpr :: QuasiQuoter
+rulelangExpr =
+    mkQuasiQouter parse'
+  where
+    parse' = Parse.parse Parse.pExpr ""
+
+mkQuasiQouter
+    :: Data a
+    => (Text -> Either (Text.Megaparsec.Error.ParseErrorBundle Text Void) a)
+    -> QuasiQuoter
+mkQuasiQouter parse' =
+    QuasiQuoter {
       quoteExp = \str -> do
           absyn <- case parse' (toS str) of
               Left e -> do

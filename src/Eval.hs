@@ -121,7 +121,7 @@ evalValueExpr env valueExpr =
             Number num -> num
             other -> typeError "Number" other
     toFoldFunction Sum = sum
-    toFoldFunction Average = uncurry (/) . foldl' (\(sum', count) value -> (sum' + value, count + 1)) (0,0)
+    toFoldFunction Avg = uncurry (/) . foldl' (\(sum', count) value -> (sum' + value, count + 1)) (0,0)
     toFoldFunction Max = foldl' max 0
     toFoldFunction Min = foldl' min 0
 
