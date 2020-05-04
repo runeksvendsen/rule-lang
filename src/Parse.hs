@@ -223,8 +223,8 @@ keyword input =
 -- Parse an expression enclosed in parentheses.
 parens :: Parser a -> Parser a
 parens = M.between
-    (symbol "(")
-    (symbol ")")
+    (L.symbol sc "(")
+    (L.symbol sc ")")
 
 -- Run "inputParser" between:
 --   <newline/whitespace>{<newline/whitespace>inputParser<newline/whitespace>}<whitespace>
@@ -249,10 +249,6 @@ scn = L.space (void Char.spaceChar) lineComment blockComment
 -- A space-consumer that does NOT consume newlines
 sc :: Parser ()
 sc = L.space (void $ M.oneOf [' ', '\t']) lineComment blockComment
-
--- Parse a literal text string, ignoring trailing spaces/tabs
-symbol :: Text -> Parser Text
-symbol = L.symbol sc
 
 -- Parse something and remove optional trailing tabs/spaces
 lexeme :: Parser a -> Parser a
