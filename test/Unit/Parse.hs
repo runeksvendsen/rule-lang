@@ -32,7 +32,7 @@ main = do
 
 testsSimple :: [(Text, [RuleExpr])]
 testsSimple =
-    [ ("let a = true\nrequire a"
+    [ ( T.unlines ["let a = true", "require a"]
       , [ Let "a" (Literal (FieldValue (Bool True)))
         , Rule (Var "a")
         ]

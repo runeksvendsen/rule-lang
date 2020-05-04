@@ -65,7 +65,7 @@ ruleParserDoc = scn *> rules <* M.eof
 -- Zero or more RuleExpr separated by one or more newlines
 rules :: Parser [RuleExpr]
 rules =
-    many (skipTrailingNewline pRuleExpr)
+    many (skipTrailingNewline $ lexeme pRuleExpr <* Char.eol)
   where
     skipTrailingNewline = L.lexeme scn
 
@@ -226,12 +226,13 @@ parens = M.between
     (symbol "(")
     (symbol ")")
 
--- Parse an expression enclosed in braces, discarding all whitespace
---   before and after both the opening and closing brace.
+-- Run "inputParser" between:
+--   <newline/whitespace>{<newline/whitespace>inputParser<newline/whitespace>}<whitespace>
+-- NB: Notice that no newline(s) are parsed after closing brace.
 braces :: Parser a -> Parser a
 braces = M.between
     (scn *> L.symbol scn "{")
-    (scn *> L.symbol scn "}")
+    (scn *> L.symbol sc "}")
 
 -- Line comments start with //
 lineComment :: Parser ()
