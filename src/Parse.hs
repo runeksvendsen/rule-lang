@@ -11,6 +11,7 @@ module Parse
 )
 where
 
+import Prelude
 import LangPrelude
 import Types
 import Absyn as Absyn
@@ -18,7 +19,7 @@ import Absyn as Absyn
 import Control.Applicative (many, (<|>))
 import qualified Text.Megaparsec as M
 import qualified Text.Megaparsec.Char.Lexer as L
-import qualified Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char as Char
 import qualified Text.Megaparsec.Debug as D
 import Control.Monad.Combinators.Expr (Operator(Prefix, InfixL, InfixN), makeExprParser)
 
@@ -117,31 +118,25 @@ pExpr =
     term = lexeme $ parens expr <|> pTerm
     pTerm = Literal <$> pLiteral <|> Var <$> pVarReferece
     table =
-        [ [ InfixL $ keyword "where" >> return (\a -> DataExpr . Filter a)
-          , InfixL $ keyword "grouped" >> keyword "by" >> return (\a -> DataExpr . GroupBy a)
-          ]
+        [ [ InfixL $ keyword "where"                   >> return (\a -> DataExpr . Filter a)
+          , InfixL $ keyword "grouped" >> keyword "by" >> return (\a -> DataExpr . GroupBy a) ]
         , [ InfixN $ keyword "of" >> return Map ]
-        , [ Prefix $ keyword "count" >> return (ValueExpr . GroupCount)
-          , Prefix $ keyword "sum" >> return (ValueExpr . FoldMap Sum)
+        , [ Prefix $ keyword "count"   >> return (ValueExpr . GroupCount)
+          , Prefix $ keyword "sum"     >> return (ValueExpr . FoldMap Sum)
           , Prefix $ keyword "average" >> return (ValueExpr . FoldMap Avg)
           , Prefix $ keyword "minimum" >> return (ValueExpr . FoldMap Min)
-          , Prefix $ keyword "maximum" >> return (ValueExpr . FoldMap Max)
-          ]
+          , Prefix $ keyword "maximum" >> return (ValueExpr . FoldMap Max) ]
         , [ InfixL $ keyword "relative" >> keyword "to" >> return (\a -> ValueExpr . Relative a)]
-        , [ InfixN $ op "==" >> return (mkComp Eq)
-          , InfixN $ op "!=" >> return (mkComp NEq)
-          , InfixN $ op ">" >> return (mkComp Gt)
-          , InfixN $ op "<" >> return (mkComp Lt)
-          , InfixN $ op ">=" >> return (mkComp GtEq)
-          , InfixN $ op "<=" >> return (mkComp LtEq)
-          ]
+        , [ InfixN $ keyword "=="                                   >> return (mkComp Eq)
+          , InfixN $ keyword "!="                                   >> return (mkComp NEq)
+          , InfixN $ keyword ">="                                   >> return (mkComp GtEq)
+          , InfixN $ keyword "<="                                   >> return (mkComp LtEq)
+          , InfixN $ keyword ">" <* M.notFollowedBy (Char.char '=') >> return (mkComp Gt)
+          , InfixN $ keyword "<" <* M.notFollowedBy (Char.char '=') >> return (mkComp Lt) ]
         , [ Prefix $ keyword "NOT" >> return (BoolExpr . Not) ]
         , [ InfixL $ keyword "AND" >> return (\a -> BoolExpr . And a) ]
-        , [ InfixL $ keyword "OR" >> return (\a -> BoolExpr . Or a) ]
-        ]
-    op n = L.lexeme sc $ M.try (Text.Megaparsec.Char.string n <* M.notFollowedBy (Text.Megaparsec.Char.char '='))
+        , [ InfixL $ keyword "OR"  >> return (\a -> BoolExpr . Or a) ] ]
     mkComp numComp a b = BoolExpr $ Comparison a numComp b
-
 
 -- ########################
 -- ##### Identifiers ######
@@ -159,8 +154,8 @@ pDefineVar = do
 -- | A reference to a variable name (no restriction on start letter case)
 pVarReferece :: Parser Text
 pVarReferece = do
-    firstChar <- Text.Megaparsec.Char.letterChar
-    remainingChars <- many Text.Megaparsec.Char.alphaNumChar
+    firstChar <- Char.letterChar
+    remainingChars <- many Char.alphaNumChar
     let identifier = toS $ firstChar : remainingChars
     -- HACK: prevent keywords from being parsed as
     --  identifiers/variable references
@@ -183,7 +178,7 @@ pLiteral = debug "pLiteral" $
 --    followed by zero or more alphanumeric characters
 pFieldName :: Parser FieldName
 pFieldName = debug "FieldName" $ do
-    varRef <- Text.Megaparsec.Char.char '.' *> pVarReferece
+    varRef <- Char.char '.' *> pVarReferece
     checkBeginChar (toS varRef)
   where
     checkBeginChar [] = error "BUG: pVarReferece returned empty string"
@@ -195,7 +190,7 @@ pFieldName = debug "FieldName" $ do
 
 pPercentage :: Parser Literal
 pPercentage = Percent <$>
-    pNumber <* Text.Megaparsec.Char.char '%'
+    pNumber <* Char.char '%'
 
 pFieldValue :: Parser FieldValue
 pFieldValue = debug "pFieldValue" $
@@ -205,10 +200,10 @@ pFieldValue = debug "pFieldValue" $
   where
     pBool = (pConstant "true" >> return True) <|> (pConstant "false" >> return False)
     pConstant c = debug "pConstant" $
-        M.chunk c *> M.notFollowedBy Text.Megaparsec.Char.alphaNumChar
+        M.chunk c *> M.notFollowedBy Char.alphaNumChar
     pStringLiteral =
-        Text.Megaparsec.Char.char '\"' *> M.manyTill L.charLiteral
-            (Text.Megaparsec.Char.char '\"')
+        Char.char '\"' *> M.manyTill L.charLiteral
+            (Char.char '\"')
 
 pNumber :: Parser Number
 pNumber = debug "pNumber" $
@@ -222,7 +217,7 @@ pNumber = debug "pNumber" $
 keyword :: Text -> Parser ()
 keyword input =
     lexeme $
-        M.chunk input *> M.notFollowedBy Text.Megaparsec.Char.alphaNumChar
+        M.chunk input *> M.notFollowedBy Char.alphaNumChar
     -- "notFollowedBy" makes sure keyword-prefixed strings are not parsed as a keyword.
     -- E.g. "counterParty" shouldn't be parsed as "count" on a variable named "erParty",
     --   but as a variable named "counterParty".
@@ -250,7 +245,7 @@ blockComment = L.skipBlockComment "/*" "*/"
 
 -- A space-consumer that consumes newlines
 scn :: Parser ()
-scn = L.space (void Text.Megaparsec.Char.spaceChar) lineComment blockComment
+scn = L.space (void Char.spaceChar) lineComment blockComment
 
 -- A space-consumer that does NOT consume newlines
 sc :: Parser ()

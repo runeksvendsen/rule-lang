@@ -98,10 +98,11 @@ valueExpr = Relative
 boolExpr :: BoolExpr
 boolExpr = Or (BoolExpr (Comparison (Var "a") Lt (Var "b"))) (BoolExpr (Comparison (Var "a") Eq (Var "b")))
 
+-- count Country >= 5
+test1 = Comparison (ValueExpr (GroupCount (Var "Country"))) GtEq (Literal (FieldValue (Number 5)))
 
-
-
-
+-- let countries = Portfolio grouped by .Country
+testLet = Let "countries" (DataExpr (GroupBy (Var "Portfolio") (Literal (FieldName "Country"))))
 
 
 
