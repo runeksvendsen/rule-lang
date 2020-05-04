@@ -20,7 +20,6 @@ import Control.Applicative (many, (<|>))
 import qualified Text.Megaparsec as M
 import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.Megaparsec.Char as Char
-import qualified Text.Megaparsec.Debug as D
 import Control.Monad.Combinators.Expr (Operator(Prefix, InfixL, InfixN), makeExprParser)
 
 import qualified Data.Char as C
@@ -76,7 +75,7 @@ rules =
 -- ########################
 
 pRuleExpr :: Parser RuleExpr
-pRuleExpr = debug "pRuleExpr" $
+pRuleExpr =
     pLet <|> pForEach <|> pIf <|> pRule
 
 pLet :: Parser RuleExpr
@@ -88,21 +87,21 @@ pLet = do
     return $ Let varName expr
 
 pForEach :: Parser RuleExpr
-pForEach = debug "pForEach" $ do
+pForEach = do
     keyword "forall"
     dataExpr <- lexeme pExpr
     scope <- braces rules
     return $ Forall dataExpr scope
 
 pIf :: Parser RuleExpr
-pIf = debug "pIf" $ do
+pIf = do
     keyword "if"
     varOrBoolExpr <- lexeme pExpr
     scope <- braces rules
     return $ If varOrBoolExpr scope
 
 pRule :: Parser RuleExpr
-pRule = debug "pRule" $ do
+pRule = do
     keyword "require"
     Rule <$> pExpr
 
@@ -169,7 +168,7 @@ pVarReferece = do
 -- ########################
 
 pLiteral :: Parser Literal
-pLiteral = debug "pLiteral" $
+pLiteral =
         M.try pPercentage
     <|> FieldValue <$> pFieldValue
     <|> FieldName <$> pFieldName
@@ -177,7 +176,7 @@ pLiteral = debug "pLiteral" $
 -- | Field names begin with a "." followed by an upper case character
 --    followed by zero or more alphanumeric characters
 pFieldName :: Parser FieldName
-pFieldName = debug "FieldName" $ do
+pFieldName = do
     varRef <- Char.char '.' *> pVarReferece
     checkBeginChar (toS varRef)
   where
@@ -193,20 +192,19 @@ pPercentage = Percent <$>
     pNumber <* Char.char '%'
 
 pFieldValue :: Parser FieldValue
-pFieldValue = debug "pFieldValue" $
+pFieldValue =
         (String . toS <$> pStringLiteral)
     <|> Bool <$> pBool
     <|> Number <$> pNumber
   where
     pBool = (pConstant "true" >> return True) <|> (pConstant "false" >> return False)
-    pConstant c = debug "pConstant" $
-        M.chunk c *> M.notFollowedBy Char.alphaNumChar
+    pConstant c = M.chunk c *> M.notFollowedBy Char.alphaNumChar
     pStringLiteral =
         Char.char '\"' *> M.manyTill L.charLiteral
             (Char.char '\"')
 
 pNumber :: Parser Number
-pNumber = debug "pNumber" $
+pNumber =
     M.try (fromReal @Double <$> L.float) <|> fromIntegral @Integer <$> L.decimal
 
 
@@ -269,11 +267,3 @@ failParse msg expected =
     M.failure (Just $ M.Label $ neText msg) (Set.fromList es)
   where
     es = map (M.Tokens . NE.fromList . T.unpack) expected
-
-debug :: Show a => String -> Parser a -> Parser a
-debug =
-    off
-  where
-    off = const id
-    on :: Show a => String -> Parser a -> Parser a
-    on = D.dbg
