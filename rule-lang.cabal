@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dd5e0ebe639e325f54cbd43dfdc97145d6965b9f574f8b33a1c2ccf9da74ebe5
+-- hash: 4502ad3288d855e45c54de89eebc2b6b0c61da4e28d064270faa87a3a7efb52f
 
 name:           rule-lang
 version:        0.1.0.0
@@ -28,13 +28,10 @@ library
       Examples.Expr
       Examples.Rules
       LangPrelude
-      NewTmpAbsyn
       Parse
       Pretty
       QuasiQuote
       Report.ParserExample
-      TestAbsyn
-      TmpAbsyn
       Tree
       Types
   other-modules:

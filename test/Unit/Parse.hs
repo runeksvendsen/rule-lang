@@ -17,17 +17,21 @@ import qualified Data.Text as T
 
 main :: IO ()
 main = do
-    forM_ exprTests (uncurry $ runTests Pretty.ppExpr)
-    forM_ ruleTests (uncurry $ runTests (Pretty.pp "   "))
+    forM_ exprTests $ runTests Pretty.ppExpr Parse.pExpr
+    forM_ ruleTests $ runTests (Pretty.pp "   ") Parse.ruleParserDoc
   where
     exprTests =
-        [ (testsNumComp,  Parse.pExpr)
-        , (testsBoolComp, Parse.pExpr)
-        , (testsGrouping, Parse.pExpr)
-        , (testsCombined, Parse.pExpr)
+        [ testsNumbers
+        , testsStrings
+        , testsNumComp
+        , testsParens
+        , testsBoolComp
+        , testsGrouping
+        , testsCombined
         ]
     ruleTests =
-        [ (testsSimple, Parse.ruleParserDoc)
+        [ testsSimple
+        , testsBlockStmt
         ]
 
 testsSimple :: [(Text, [RuleExpr])]
@@ -36,6 +40,56 @@ testsSimple =
       , [ Let "a" (Literal (FieldValue (Bool True)))
         , Rule (Var "a")
         ]
+      )
+    ]
+
+testsBlockStmt :: [(Text, [RuleExpr])]
+testsBlockStmt =
+    [ ( T.unlines ["if a { require b", "}"]
+      , [ If (Var "a") [Rule $ Var "b"]
+        ]
+      )
+    ]
+
+testsNumbers :: [(Text, Expr)]
+testsNumbers =
+    [ ( "12"
+      , Literal (FieldValue (Number 12))
+      )
+    , ( "17.5"
+      , Literal (FieldValue (Number 17.5))
+      )
+    , ( "7%"
+      , Literal (Percent 7)
+      )
+    , ( "7.5%"
+      , Literal (Percent 7.5)
+      )
+    , ( "-12"
+      , Literal (FieldValue (Number $ -12))
+      )
+    , ( "-17.5"
+      , Literal (FieldValue (Number $ -17.5))
+      )
+    , ( "-7%"
+      , Literal (Percent $ -7)
+      )
+    , ( "-7.5%"
+      , Literal (Percent $ -7.5)
+      )
+    ]
+
+testsStrings :: [(Text, Expr)]
+testsStrings =
+    [ ( "\"hello\""
+      , Literal (FieldValue (String "hello"))
+      )
+    , ( "\"HELLO\""
+      , Literal (FieldValue (String "HELLO"))
+      )
+      -- escaped double quote
+    , ( toS ['"', 'h', 'e', '\\', '"', 'y', '"'] -- he\"y
+      , Literal (FieldValue (String $ toS ['h', 'e', '"', 'y']))
       )
     ]
 
@@ -50,6 +104,30 @@ testsNumComp =
     ]
   where
     mkField = Literal . FieldName
+
+testsParens :: [(Text, Expr)]
+testsParens =
+    [ ( "a AND b OR c"
+      , BoolExpr $ (BoolExpr $ Var "a" `And` Var "b") `Or` Var "c"
+      )
+    , ( "a AND (b OR c)"
+      , aAnd_bOrC
+      )
+    , ( "a AND ( b OR c)"
+      , aAnd_bOrC
+      )
+    , ( "a AND (b OR c )"
+      , aAnd_bOrC
+      )
+    , ( "a AND ( b OR c )"
+      , aAnd_bOrC
+      )
+    , ( "a  AND  ( b  OR  c  )  "
+      , aAnd_bOrC
+      )
+    ]
+  where
+    aAnd_bOrC = BoolExpr $ Var "a" `And` (BoolExpr $ Var "b" `Or` Var "c")
 
 testsBoolComp :: [(Text, Expr)]
 testsBoolComp =
@@ -110,10 +188,10 @@ testsCombined =
 runTests
     :: Eq a
     => (a -> Text)
-    -> [(Text, a)]
     -> Parse.Parser a
+    -> [(Text, a)]
     -> IO ()
-runTests pp tests p =
+runTests pp p tests =
     forM_ tests runTest
   where
     parse' = M.parse p ""

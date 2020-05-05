@@ -22,7 +22,7 @@ main =
     forM_ positionCounts $ \posCount ->
         forM_ Examples.Rules.allRules (testRule posCount)
   where
-    positionCounts = [1, 10, 100, 1000, 10000, 100000]
+    positionCounts = [1, 10, 100, 1000, 10000]
 
 testRule :: Int -> (Rule, String) -> IO ()
 testRule numPositions (rule, name) = do
