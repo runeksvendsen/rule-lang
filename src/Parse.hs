@@ -83,23 +83,29 @@ pRuleExpr :: Parser RuleExpr
 pRuleExpr =
     pLet <|> pForEach <|> pIf <|> pRule
 
+pRuleBlock :: Parser [RuleExpr]
+pRuleBlock = M.between
+    (keySym "{" *> eol *> spaceTabNewline)
+    (keySym "}")
+    pRules
+
 pLet :: Parser RuleExpr
 pLet = do
     varName <- kw "let" *> lexeme pDefineVar
-    expr <- kw "=" *> lexeme pExpr
+    expr <- keySym "=" *> lexeme pExpr
     return $ Let varName expr
 
 pForEach :: Parser RuleExpr
 pForEach = do
     dataExpr <- kw "forall" *> lexeme pExpr
-    scope <- braces pRules
-    return $ Forall dataExpr scope
+    block <- pRuleBlock
+    return $ Forall dataExpr block
 
 pIf :: Parser RuleExpr
 pIf = do
     varOrBoolExpr <- kw "if" *> lexeme pExpr
-    scope <- braces pRules
-    return $ If varOrBoolExpr scope
+    block <- pRuleBlock
+    return $ If varOrBoolExpr block
 
 pRule :: Parser RuleExpr
 pRule = kw "require" *> (Rule <$> pExpr)
@@ -115,8 +121,8 @@ pIntExpr =
   where
     pInt = M.decimal
     table = [ [ Prefix $ kw "increment" *> return (+1) ]
-            , [ InfixL $ kw "+" *> return (+) ]
-            , [ InfixL $ kw "-" *> return (-) ]
+            , [ InfixL $ keySym "+" *> return (+) ]
+            , [ InfixL $ keySym "-" *> return (-) ]
             ]
 
 pExpr :: Parser Expr
@@ -139,12 +145,12 @@ exprOperatorTable =
       , Prefix $ kw "maximum" *> return (ValueExpr . FoldMap Max)
       ]
     , [ InfixL $ kw "relative" *> kw "to" *> return (\a -> ValueExpr . Relative a) ]
-    , [ InfixN $ kw "==" *> return (mkComparison Eq)
-      , InfixN $ kw "!=" *> return (mkComparison NEq)
-      , InfixN $ kw ">=" *> return (mkComparison GtEq)
-      , InfixN $ kw "<=" *> return (mkComparison LtEq)
-      , InfixN $ kw ">" <* M.notFollowedBy (M.char '=') *> return (mkComparison Gt)
-      , InfixN $ kw "<" <* M.notFollowedBy (M.char '=') *> return (mkComparison Lt)
+    , [ InfixN $ keySym "==" *> return (mkComparison Eq)
+      , InfixN $ keySym "!=" *> return (mkComparison NEq)
+      , InfixN $ keySym ">=" *> return (mkComparison GtEq)
+      , InfixN $ keySym "<=" *> return (mkComparison LtEq)
+      , InfixN $ keySym ">" <* M.notFollowedBy (M.char '=') *> return (mkComparison Gt)
+      , InfixN $ keySym "<" <* M.notFollowedBy (M.char '=') *> return (mkComparison Lt)
       ]
     , [ Prefix $ kw "NOT" *> return (BoolExpr . Not) ]
     , [ InfixL $ kw "AND" *> return (\a -> BoolExpr . And a) ]
@@ -237,9 +243,12 @@ kw :: Text -> Parser ()
 kw input =
     lexeme $
         M.chunk input *> M.notFollowedBy M.alphaNumChar
-    -- "notFollowedBy" makes sure kw-prefixed strings are not parsed as a kw.
+    -- "notFollowedBy" makes sure keyword-prefixed strings are not parsed as a keyword.
     -- E.g. "counterParty" shouldn't be parsed as "count" on a variable named "erParty",
     --   but as a variable named "counterParty".
+
+keySym :: Text -> Parser ()
+keySym = void . lexeme . M.chunk
 
 -- Parse an expression enclosed in parentheses.
 -- Discards trailing spaces/tabs after both opening and closing parens.

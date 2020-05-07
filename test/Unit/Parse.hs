@@ -17,9 +17,16 @@ import qualified Data.Text as T
 
 main :: IO ()
 main = do
+    title "Expression"
     forM_ exprTests $ runTests Pretty.ppExpr Parse.pExpr
+    title "Expression (failure)"
+    forM_ failureTestsExpr $ runTestsFail Pretty.ppExpr Parse.pExpr
+    title "Rule (success)"
     forM_ ruleTests $ runTests (Pretty.pp "   ") Parse.ruleParserDoc
+    title "Rule (failure)"
+    forM_ failureTestsStmt $ runTestsFail (Pretty.pp "   ") Parse.ruleParserDoc
   where
+    title str = putStrLn $ "\n##### " <> str <> " #####"
     exprTests =
         [ testsNumbers
         , testsStrings
@@ -29,9 +36,15 @@ main = do
         , testsGrouping
         , testsCombined
         ]
+    failureTestsExpr =
+        [ testsExprFailure
+        ]
     ruleTests =
         [ testsSimple
         , testsBlockStmt
+        ]
+    failureTestsStmt =
+        [ testsStmtFailure
         ]
 
 testsSimple :: [(Text, [RuleExpr])]
@@ -41,14 +54,64 @@ testsSimple =
         , Rule (Var "a")
         ]
       )
+    , (T.unlines ["let a=true"]
+      , [ Let "a" (Literal (FieldValue (Bool True)))]
+      )
+    , (T.unlines ["let a= true"]
+      , [ Let "a" (Literal (FieldValue (Bool True)))]
+      )
+    , (T.unlines ["let a =true"]
+      , [ Let "a" (Literal (FieldValue (Bool True)))]
+      )
     ]
 
 testsBlockStmt :: [(Text, [RuleExpr])]
 testsBlockStmt =
-    [ ( T.unlines ["if a { require b", "}"]
+    [ ( T.unlines ["if a {", "}"]
+      , [ If (Var "a") []
+        ]
+      )
+    , ( T.unlines ["if a {", "", "", "", "}"]
+      , [ If (Var "a") []
+        ]
+      )
+    , ( T.unlines ["if a {", "require b", "}"]
       , [ If (Var "a") [Rule $ Var "b"]
         ]
       )
+    , ( T.unlines ["if a", "{", "require b", "}"]
+      , [ If (Var "a") [Rule $ Var "b"]
+        ]
+      )
+    , ( T.unlines ["if a {", "require b", "}", "require c"]
+      , [ If (Var "a") [Rule $ Var "b"]
+        , Rule $ Var "c"
+        ]
+      )
+    , ( T.unlines ["if a", "", "", "{", "", "", "require b", "", "", "}", "", ""]
+      , [ If (Var "a") [Rule $ Var "b"]
+        ]
+      )
+    ]
+
+testsStmtFailure :: [Text]
+testsStmtFailure =
+    [ T.unlines ["if a {    require b     }"]
+    , T.unlines ["if a {    require b ", "}"]
+    , T.unlines ["if a {", "require b }    "]
+    , T.unlines ["if a {", "require b ", "} require c"]
+    ]
+
+testsExprFailure :: [Text]
+testsExprFailure =
+    [ "5relative to5"
+    , "5relative to 5"
+    , "5%relative to 5"
+    , "\"hey\"relative to 5"
+    , "5 relative to5"
+    , "5where5"
+    , "5where 5"
+    , "5 where5"
     ]
 
 testsNumbers :: [(Text, Expr)]
@@ -140,8 +203,36 @@ testsBoolComp =
           GtEq
           (Literal (Percent 10))
       )
+    , ( "5 relative to 5"
+      , ValueExpr $ num 5 `Relative` num 5
+      )
+    , ("5 > 4"
+      , BoolExpr $ Comparison (num 5) Gt (num 4)
+      )
+    , ("5>4"
+      , BoolExpr $ Comparison (num 5) Gt (num 4)
+      )
+    , ("5> 4"
+      , BoolExpr $ Comparison (num 5) Gt (num 4)
+      )
+    , ("5 >4"
+      , BoolExpr $ Comparison (num 5) Gt (num 4)
+      )
+    , ("\"hey\">4"
+      , BoolExpr $ Comparison (Literal $ FieldValue "hey") Gt (num 4)
+      )
+    , (".Value>.Exposure"
+      , BoolExpr $ Comparison (mkField "Value") Gt (mkField "Exposure")
+      )
+    , ("true>4"
+      , BoolExpr $ Comparison (Literal $ FieldValue (Bool True)) Gt (num 4)
+      )
+    , ("a>b"
+      , BoolExpr $ Comparison (Var "a") Gt (Var "b")
+      )
     ]
   where
+    num = Literal . FieldValue
     second (_:x:_) = x
     mkField = Literal . FieldName
 
@@ -200,6 +291,23 @@ runTests pp p tests =
         putStrLn . toS $ case parse' txt of
             Left e -> Color.red (toS $ M.errorBundlePretty e)
             Right absyn -> either id id (expectedButFound pp expected absyn)
+
+-- Run tests expected to fail
+runTestsFail
+    :: Eq a
+    => (a -> Text)
+    -> Parse.Parser a
+    -> [Text]
+    -> IO ()
+runTestsFail pp p tests =
+    forM_ tests runTestFail
+  where
+    parse' = M.parse p ""
+    runTestFail txt = do
+        putStrLn . toS $ "Parsing:   " <> txt
+        putStrLn . toS $ case parse' txt of
+            Left e -> Color.green $ T.unlines ["Failed with: ", toS $ M.errorBundlePretty e]
+            Right absyn -> Color.red $ "Expected failure, succeeded with: " <> toS (pp absyn)
 
 expectedButFound
   :: Eq a
