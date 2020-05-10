@@ -274,7 +274,7 @@ testsGrouping =
 
 testsCombined :: [(Text, Expr)]
 testsCombined =
-    [ ( ".Hello == \"LOL\" AND sum .Value of Country where (.InstrumentType !== \"Bond\") >= 10000"
+    [ ( ".Hello == \"LOL\" AND sum .Value of Country where (.InstrumentType != \"Bond\") >= 10000"
       , BoolExpr $ (BoolExpr $ Comparison (Literal (FieldName "Hello")) Eq (Literal $ FieldValue $ String "LOL")) `And`
             (BoolExpr $ Comparison (ValueExpr foldValue) GtEq (Literal $ FieldValue 10000))
       )
