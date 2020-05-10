@@ -8,7 +8,6 @@ module Parse
 , module Absyn
 , M.parse
 , Parser
-, pIntExpr
 )
 where
 
@@ -70,9 +69,7 @@ ruleParserDoc = spaceTabNewline *> pRules <* M.eof
 -- Zero or more RuleExpr separated by one or more newlines
 pRules :: Parser [RuleExpr]
 pRules =
-    many (skipTrailingNewline $ lexeme pRuleExpr <* M.eol)
-  where
-    skipTrailingNewline = M.lexeme spaceTabNewline
+    many (lexeme pRuleExpr <* M.eol <* spaceTabNewline)
 
 
 -- ########################
@@ -81,49 +78,39 @@ pRules =
 
 pRuleExpr :: Parser RuleExpr
 pRuleExpr =
-    pLet <|> pForEach <|> pIf <|> pRule
+    pLet <|> pForall <|> pIf <|> pRequire
 
 pRuleBlock :: Parser [RuleExpr]
 pRuleBlock = M.between
-    (keySym "{" *> eol *> spaceTabNewline)
-    (keySym "}")
+    (lexeme (M.chunk "{") *> M.eol *> spaceTabNewline)
+    (lexeme (M.chunk "}"))
     pRules
 
 pLet :: Parser RuleExpr
 pLet = do
     varName <- kw "let" *> lexeme pDefineVar
-    expr <- keySym "=" *> lexeme pExpr
+    expr <- lexeme (M.chunk "=") *> lexeme pExpr
     return $ Let varName expr
 
-pForEach :: Parser RuleExpr
-pForEach = do
-    dataExpr <- kw "forall" *> lexeme pExpr
+pForall :: Parser RuleExpr
+pForall = do
+    dataExpr <- kw "forall" *> lexeme pExpr <* spaceTabNewline
     block <- pRuleBlock
     return $ Forall dataExpr block
 
 pIf :: Parser RuleExpr
 pIf = do
-    varOrBoolExpr <- kw "if" *> lexeme pExpr
+    varOrBoolExpr <- kw "if" *> lexeme pExpr <* spaceTabNewline
     block <- pRuleBlock
     return $ If varOrBoolExpr block
 
-pRule :: Parser RuleExpr
-pRule = kw "require" *> (Rule <$> pExpr)
+pRequire :: Parser RuleExpr
+pRequire = kw "require" *> (Rule <$> pExpr)
 
 
 -- ###################
 -- ###### Expr ######
 -- ###################
-
-pIntExpr :: Parser Int
-pIntExpr =
-    Expr.makeExprParser (lexeme $ parens pIntExpr <|> pInt) table
-  where
-    pInt = M.decimal
-    table = [ [ Prefix $ kw "increment" *> return (+1) ]
-            , [ InfixL $ keySym "+" *> return (+) ]
-            , [ InfixL $ keySym "-" *> return (-) ]
-            ]
 
 pExpr :: Parser Expr
 pExpr =
@@ -145,12 +132,12 @@ exprOperatorTable =
       , Prefix $ kw "maximum" *> return (ValueExpr . FoldMap Max)
       ]
     , [ InfixL $ kw "relative" *> kw "to" *> return (\a -> ValueExpr . Relative a) ]
-    , [ InfixN $ keySym "==" *> return (mkComparison Eq)
-      , InfixN $ keySym "!=" *> return (mkComparison NEq)
-      , InfixN $ keySym ">=" *> return (mkComparison GtEq)
-      , InfixN $ keySym "<=" *> return (mkComparison LtEq)
-      , InfixN $ keySym ">" <* M.notFollowedBy (M.char '=') *> return (mkComparison Gt)
-      , InfixN $ keySym "<" <* M.notFollowedBy (M.char '=') *> return (mkComparison Lt)
+    , [ InfixN $ ks "==" *> return (mkComparison Eq)
+      , InfixN $ ks "!=" *> return (mkComparison NEq)
+      , InfixN $ ks ">"  *> return (mkComparison Gt)
+      , InfixN $ ks "<"  *> return (mkComparison Lt)
+      , InfixN $ ks ">=" *> return (mkComparison GtEq)
+      , InfixN $ ks "<=" *> return (mkComparison LtEq)
       ]
     , [ Prefix $ kw "NOT" *> return (BoolExpr . Not) ]
     , [ InfixL $ kw "AND" *> return (\a -> BoolExpr . And a) ]
@@ -191,9 +178,12 @@ pVarReference = do
 
 pLiteral :: Parser Literal
 pLiteral =
-        Percent <$> M.try pPercentage
-    <|> FieldValue <$> pFieldValue
-    <|> FieldName <$> pFieldName
+        FieldName <$> pFieldName
+    <|> percentOrFieldValue
+  where
+    percentOrFieldValue =
+        (Percent <$> M.try pPercentage
+        <|> FieldValue <$> pFieldValue) <* M.notFollowedBy M.alphaNumChar
 
 -- | Field names begin with a "." followed by an upper case character
 --    followed by zero or more alphanumeric characters
@@ -220,7 +210,7 @@ pBool =
         pConstant "true" *> return True
     <|> pConstant "false" *> return False
   where
-    pConstant str = M.chunk str *> M.notFollowedBy M.alphaNumChar
+    pConstant str = M.try $ M.chunk str *> M.notFollowedBy M.alphaNumChar
 
 pStringLiteral :: Parser Text
 pStringLiteral = fmap toS $
@@ -240,15 +230,21 @@ pNumber = signed $
 
 -- Parse the given keyword (discarding trailing spaces/tabs)
 kw :: Text -> Parser ()
-kw input =
-    lexeme $
-        M.chunk input *> M.notFollowedBy M.alphaNumChar
+kw input = lexeme . M.try $
+    M.chunk input *> M.notFollowedBy M.alphaNumChar
     -- "notFollowedBy" makes sure keyword-prefixed strings are not parsed as a keyword.
     -- E.g. "counterParty" shouldn't be parsed as "count" on a variable named "erParty",
     --   but as a variable named "counterParty".
 
-keySym :: Text -> Parser ()
-keySym = void . lexeme . M.chunk
+-- Key symbol (e.g. "=", "==", "!=", ">", ">=").
+-- Same as 'kw' but for symbols.
+-- Allows parsing multi-character symbols that may be prefixed with
+--  another valid symbol (e.g. allows parsing both '>' and '>=')
+ks :: Text -> Parser ()
+ks input = lexeme . M.try $
+    M.chunk input *> M.notFollowedBy symbolChar
+  where
+    symbolChar = M.oneOf ['=', '>', '<', '!']
 
 -- Parse an expression enclosed in parentheses.
 -- Discards trailing spaces/tabs after both opening and closing parens.

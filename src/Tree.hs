@@ -14,23 +14,23 @@ import Types
 import qualified Data.HashMap.Strict as M
 
 
-data Tree leafLabel =
-      Node (NodeData [Tree leafLabel])
-    | TermNode (NodeData leafLabel)
+data Tree termLabel =
+      Node (NodeData [Tree termLabel])
+    | TermNode (NodeData termLabel)
         deriving (Eq, Show, Functor)
 
 data NodeData a = NodeData (FieldName, FieldValue) a
     deriving (Eq, Show, Functor)
 
--- Collect all term nodes
-termNodes :: Tree leafLabel -> [leafLabel]
+-- Collect all term node labels
+termNodes :: Tree termLabel -> [termLabel]
 termNodes tree =
     go [] tree
   where
     go accum (Node (NodeData _ subTree)) = concat $ map (go accum) subTree
     go accum (TermNode (NodeData _ leaf)) = leaf : accum
 
--- removeEmpty :: Monoid leafLabel => Tree leafLabel -> Maybe (Tree leafLabel)
+-- removeEmpty :: Monoid termLabel => Tree termLabel -> Maybe (Tree termLabel)
 -- removeEmpty tree =
 --     go Nothing tree
 --   where

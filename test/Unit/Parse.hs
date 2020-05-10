@@ -18,9 +18,9 @@ import qualified Data.Text as T
 main :: IO ()
 main = do
     title "Expression"
-    forM_ exprTests $ runTests Pretty.ppExpr Parse.pExpr
+    forM_ exprTests $ runTests Pretty.ppExpr (Parse.pExpr <* M.eof)
     title "Expression (failure)"
-    forM_ failureTestsExpr $ runTestsFail Pretty.ppExpr Parse.pExpr
+    forM_ failureTestsExpr $ runTestsFail Pretty.ppExpr (Parse.pExpr <* M.eof)
     title "Rule (success)"
     forM_ ruleTests $ runTests (Pretty.pp "   ") Parse.ruleParserDoc
     title "Rule (failure)"
@@ -68,6 +68,10 @@ testsSimple =
 testsBlockStmt :: [(Text, [RuleExpr])]
 testsBlockStmt =
     [ ( T.unlines ["if a {", "}"]
+      , [ If (Var "a") []
+        ]
+      )
+    , ( T.unlines ["if a{", "}"]
       , [ If (Var "a") []
         ]
       )
@@ -154,6 +158,12 @@ testsStrings =
     , ( toS ['"', 'h', 'e', '\\', '"', 'y', '"'] -- he\"y
       , Literal (FieldValue (String $ toS ['h', 'e', '"', 'y']))
       )
+      -- keyword-prefixed variables
+    , ( "trueness"
+      , Var "trueness"
+      )
+    , ( "counterParty"
+      , Var "counterParty")
     ]
 
 testsNumComp :: [(Text, Expr)]
@@ -205,6 +215,9 @@ testsBoolComp =
       )
     , ( "5 relative to 5"
       , ValueExpr $ num 5 `Relative` num 5
+      )
+    , ( "5 where 5"
+      , DataExpr $ num 5 `Filter` num 5
       )
     , ("5 > 4"
       , BoolExpr $ Comparison (num 5) Gt (num 4)
@@ -261,7 +274,7 @@ testsGrouping =
 
 testsCombined :: [(Text, Expr)]
 testsCombined =
-    [ ( ".Hello == \"LOL\" AND sum .Value of Country where (.InstrumentType != \"Bond\") >= 10000"
+    [ ( ".Hello == \"LOL\" AND sum .Value of Country where (.InstrumentType !== \"Bond\") >= 10000"
       , BoolExpr $ (BoolExpr $ Comparison (Literal (FieldName "Hello")) Eq (Literal $ FieldValue $ String "LOL")) `And`
             (BoolExpr $ Comparison (ValueExpr foldValue) GtEq (Literal $ FieldValue 10000))
       )
@@ -307,7 +320,7 @@ runTestsFail pp p tests =
         putStrLn . toS $ "Parsing:   " <> txt
         putStrLn . toS $ case parse' txt of
             Left e -> Color.green $ T.unlines ["Failed with: ", toS $ M.errorBundlePretty e]
-            Right absyn -> Color.red $ "Expected failure, succeeded with: " <> toS (pp absyn)
+            Right absyn -> Color.red $ T.unlines ["Expected failure, succeeded with: " <> toS (pp absyn)]
 
 expectedButFound
   :: Eq a

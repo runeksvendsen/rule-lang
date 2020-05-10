@@ -23,13 +23,15 @@ type Env a = NE.NonEmpty (Text, a)
 --     a list of the positions in the portfolio.
 mkInitialEnv :: [Position] -> Env RuntimeValue
 mkInitialEnv portfolioPositions =
-    nonEmpty ("Portfolio", Tree $ TermNode $ NodeData ("Portfolio", "") portfolioPositions)
+    nonEmpty ("Portfolio", portfolioTree)
+  where
+    portfolioTree = Tree $ TermNode $ NodeData ("Portfolio", "") portfolioPositions
 
--- The result of evaluating a 'Expr'
+-- The result of evaluating an 'Expr'
 data RuntimeValue
-    = Constant Literal                  -- ValueExpr/BoolExpr
-    | Tree (Tree [Position])            -- DataExpr
-    | MappedTree (Tree [FieldValue])    -- Map
+    = Constant Literal                  -- Result of evaluating: ValueExpr or BoolExpr
+    | Tree (Tree [Position])            -- Result of evaluating: DataExpr
+    | MappedTree (Tree [FieldValue])    -- Result of evaluating: Map
         deriving (Eq, Show)
 
 -- | Returns 'False' if a rule has been violated,
@@ -134,6 +136,9 @@ evalMap env (fieldNameExpr, dataExprExpr) =
         fieldName = fieldNameOrCrash env fieldNameExpr
     in fmap (fmap $ posLookup fieldName) tree
 
+-- Evaluate a 'BoolExpr' to either
+--    * a single 'Bool', that applies to the in-scope group combination defined by the given environment
+--    * a 'Bool' for each position (Position -> Bool)
 evalBoolExpr
     :: Env RuntimeValue
     -> BoolExpr
@@ -153,12 +158,12 @@ evalBoolExpr env boolExpr =
             -- Position comparison: FieldName & FieldValue
             -- Group comparison: everything else
             in case (litA, litB) of
-                -- NB: will fail in case two different kinds of values are compared, e.g.
-                --  a 'Number' and a 'Percent'
+                -- Position comparison: FieldName and FieldValue (or vice versa)
                 (Constant (FieldName fieldName), Constant (FieldValue fieldValue)) -> Right $
                     \pos -> posLookup fieldName pos `compareFun` fieldValue
                 (Constant (FieldValue fieldValue), Constant (FieldName fieldName)) -> Right $
                     \pos -> posLookup fieldName pos `compareFun` fieldValue
+                -- Group comparison: two constants
                 (Constant cstA, Constant cstB) -> Left $
                     cstA `compareFun` cstB
                 _ ->
