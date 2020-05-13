@@ -116,6 +116,7 @@ testsExprFailure =
     , "5where5"
     , "5where 5"
     , "5 where5"
+    , "1 == 1 == 1"
     ]
 
 testsNumbers :: [(Text, Expr)]

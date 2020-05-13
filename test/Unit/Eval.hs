@@ -41,6 +41,9 @@ data TestPosition = TestPosition
     , issue             :: Integer
     , instrumentType    :: String
     , counterparty      :: String
+    , securityID        :: Integer
+    , rating            :: String
+    , country           :: String
     } deriving Generic
 
 instance Arbitrary TestPosition where
@@ -51,6 +54,9 @@ instance Arbitrary TestPosition where
         <*> arbitrary
         <*> elements instrumentTypes
         <*> elements counterparties
+        <*> arbitrary
+        <*> elements ratings
+        <*> elements countries
       where
         counterparties =
             [ "SmallCompanyX"
@@ -70,6 +76,26 @@ instance Arbitrary TestPosition where
             , "StateBond"
             , "Option"
             , "Future"
+            ]
+        ratings =
+            [ "AAA"
+            , "AA"
+            , "A"
+            , "BBB"
+            , "BB"
+            , "B"
+            , "CCC"
+            , "CC"
+            , "C"
+            , "D"
+            ]
+        countries =
+            [ "DK"
+            , "US"
+            , "GB"
+            , "JP"
+            , "DE"
+            , "FR"
             ]
 
 toHashMap :: TestPosition -> Eval.Position
