@@ -18,13 +18,11 @@ import Types
 import Absyn as Absyn
 
 import Control.Applicative (many, (<|>))
-import Data.Functor (($>))
 import qualified Text.Megaparsec as M
 import qualified Text.Megaparsec.Char.Lexer as M
 import qualified Text.Megaparsec.Char as M hiding (space)
 import qualified Control.Monad.Combinators.Expr as Expr
 import Control.Monad.Combinators.Expr (Operator(Prefix, InfixL, InfixN))
-import qualified Text.Megaparsec.Debug as D
 
 import qualified Data.Char as C
 import qualified Data.Text as T
@@ -252,14 +250,6 @@ parens :: Parser a -> Parser a
 parens = M.between
     (lexeme $ M.chunk "(")
     (lexeme $ M.chunk ")")
-
--- Run "inputParser" between:
---   <space/tab/newline>{<space/tab/newline>inputParser<space/tab/newline>}<space/tab>
--- NB: Notice that no newline(s) are parsed after closing brace.
-braces :: Parser a -> Parser a
-braces = M.between
-    (spaceTabNewline *> M.chunk "{" *> spaceTabNewline)
-    (spaceTabNewline *> M.chunk "}" *> spaceTab)
 
 -- Line comments start with //
 lineComment :: Parser ()
