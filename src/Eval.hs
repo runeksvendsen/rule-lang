@@ -233,7 +233,7 @@ lookupOrEval expectedType eval' fromRuntimeValue extract env expr =
                 Nothing -> typeError expectedType runtimeVal
         notVar ->
             case extract notVar of
-                Just expr -> eval' env expr
+                Just expr' -> eval' env expr'
                 Nothing -> typeError expectedType notVar
 
 treeOrCrash :: Env RuntimeValue -> Expr -> Tree [Position]
