@@ -11,8 +11,7 @@ import QuasiQuote (rulelang)
 
 allRules :: [([Absyn.RuleExpr], String)]
 allRules =
-    [
-      (ruleI, "I")
+    [ (ruleI, "I")
     , (ruleII, "II")
     , (ruleIII, "III")
     , (ruleIV, "IV")

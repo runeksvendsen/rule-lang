@@ -88,7 +88,7 @@ ppComparison e1 bCompare e2 =
         [ ppExpr e1
         , fromMaybe (error $ "BUG: 'valueToString': " ++ show bCompare) $
             Data.List.lookup bCompare valueToString
-        , multiWordParens $ ppExpr e2
+        , ppExpr e2
         ]
 
 ppFieldName :: FieldName -> Text

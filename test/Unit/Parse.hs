@@ -175,6 +175,9 @@ testsNumComp =
     , ( "sum .Value of Country >= 10000"
       , BoolExpr $ Comparison (ValueExpr $ FoldMap Sum (mkField "Value" `Map` Var "Country")) GtEq (Literal $ FieldValue 10000)
       )
+    , ( "10000 >= sum .Value of Country"
+      , BoolExpr $ Comparison (Literal $ FieldValue 10000) GtEq (ValueExpr $ FoldMap Sum (mkField "Value" `Map` Var "Country"))
+      )
     ]
   where
     mkField = Literal . FieldName

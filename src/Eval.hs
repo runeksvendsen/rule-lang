@@ -46,12 +46,15 @@ eval initialEnv ruleExprs' =
         let newEnv = insert' env varName (evalExpr env varExpr)
         in (newEnv, success)
     go (env, success) (Forall varOrDataExpr ruleExprs) =
-        -- FIXME: empty nodes can cause evaluation of an expression to fail
-        --  because of a missing group becoming an undefined variable.
-        -- Solution: remove empty nodes from the tree when filtering.
-        let envTree = rootToLeafFold (\env' tree (fieldName, _) -> insert' env' (toS fieldName) (Tree tree))
-                                     env
-                                     (treeOrCrash env varOrDataExpr)
+        -- Do not overwrite the Portfolio-variable
+        let insertNonPortfolio env' tree' (fieldName, _) =
+                if fieldName /= "Portfolio"
+                    then insert' env' (toS fieldName) (Tree tree')
+                    else env'
+            -- FIXME: empty nodes can cause evaluation of an expression to fail
+            --  because of a missing group becoming an undefined variable.
+            -- Solution: remove empty nodes from the tree when filtering.
+            envTree = rootToLeafFold insertNonPortfolio env (treeOrCrash env varOrDataExpr)
             boolTree = mapTermNode (\(_, env') -> eval env' ruleExprs) envTree
         in (env, all (== True) (success : termNodes boolTree))
     go (env, success) (If varOrBoolExpr ruleExprs) =
@@ -91,9 +94,12 @@ evalDataExpr env dataExpr =
                         Left b -> const b
                         -- Position comparison: remove/keep on a per-position basis
                         Right posFun -> posFun
-                envTree = rootToLeafFold (\env' tree' (fieldName, _) -> insert' env' (toS fieldName) (Tree tree'))
-                          env
-                          (treeOrCrash env varOrDataExpr)
+                -- Do not overwrite the Portfolio-variable
+                insertNonPortfolio env' tree' (fieldName, _) =
+                    if fieldName /= "Portfolio"
+                        then insert' env' (toS fieldName) (Tree tree')
+                        else env'
+                envTree = rootToLeafFold insertNonPortfolio env (treeOrCrash env varOrDataExpr)
             in mapTermNode (\(positions, env') -> filter (filterPos env') positions) envTree
 
 -- Fails on relative comparisons that is not between two 'Number' or two 'Percent'

@@ -93,9 +93,9 @@ scProps = testGroup "parse (prettyPrint absyn) == absyn"
     , depth 2 $ SC.testProperty "ValueExpr" printParseValueExpr
     , depth 2 $ SC.testProperty "BoolExpr" printParseBoolExpr
     , depth 3 $ SC.testProperty "DataExpr" printParseDataExpr
-    --   , SC.testProperty "Map" printParseMap
-    --   , SC.testProperty "Expr" printParseExpr
-    --   , SC.testProperty "[RuleExpr]" printParseRuleExpr
+    , depth 3 $ SC.testProperty "Map" printParseMap
+    , depth 2 $ SC.testProperty "Expr" printParseExpr
+    , depth 2 $ SC.testProperty "[RuleExpr]" printParseRuleExpr
     ]
   where
     depth d = localOption (SC.SmallCheckDepth d)
@@ -111,9 +111,9 @@ spec =
             SC.property printParseBoolExpr
         it "DataExpr" $
             SC.property printParseDataExpr
-        -- it "Map" $
-        --     SC.property printParseMap
-        -- it "Expr" $
-        --     SC.property printParseExpr
-    --   it "[RuleExpr]" $
-    --      SC.property printParseRuleExpr
+        it "Map" $
+            SC.property printParseMap
+        it "Expr" $
+            SC.property printParseExpr
+        it "[RuleExpr]" $
+            SC.property printParseRuleExpr
