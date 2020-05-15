@@ -11,12 +11,12 @@ import Absyn
 
 import Data.List
 import qualified Data.Text as T
-import qualified Data.List.NonEmpty as NE
 
 
+pp :: Foldable t => Text -> t RuleExpr -> Text
 pp indentation = T.unlines . ppLines indentation
 
--- ppLines :: Text -> NE.NonEmpty RuleExpr -> Text
+ppLines :: Foldable t => Text -> t RuleExpr -> [Text]
 ppLines indentation exprList =
     map (\(level, line) -> T.concat (replicate (fromIntegral level) indentation) <> line)
         $ foldr (go 0) [] exprList

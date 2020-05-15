@@ -5,9 +5,7 @@ module Main
 where
 
 import LangPrelude
-import Absyn
 import qualified Pretty
-import qualified Eval
 import qualified Examples.Rules
 import qualified Examples.Expr
 import qualified Text.Show.Pretty

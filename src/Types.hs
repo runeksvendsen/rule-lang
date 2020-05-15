@@ -41,7 +41,7 @@ data FieldValue
 instance Hashable FieldValue
 instance IsString FieldValue where
     fromString = String . toS
--- TMP (for literal support)
+-- NB: Only for allowing FieldValue as literal
 instance Num FieldValue where
     fromInteger = Number . realToFrac
 
