@@ -16,16 +16,8 @@ import qualified Data.List.NonEmpty as NE
 import Test.SmallCheck.Series
 import qualified Test.SmallCheck.Series as SS
 import qualified Data.Text as T
--- DEBUG
-import Debug.Trace
 import Data.Proxy (Proxy(Proxy))
 
-
-traceM' :: (Monad m, Show b) => m b -> m b
-traceM' mb = do
-    a <- mb
-    traceShowM a
-    return a
 
 -- ##### Inviariants #####
 --   * Variable names:

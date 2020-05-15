@@ -17,7 +17,6 @@ import Test.Tasty
 import Test.Tasty.SmallCheck  as SC
 import qualified Data.Text                        as T
 import qualified Text.Megaparsec.Error
-import qualified Data.List.NonEmpty as NE
 
 import Test.Hspec
 import qualified Test.Hspec.SmallCheck  as SC
