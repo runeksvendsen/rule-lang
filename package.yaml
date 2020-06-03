@@ -34,7 +34,9 @@ library:
     - parser-combinators
     - parsers
     - template-haskell
+    - QuickCheck  # Examples.Test.Pos
     - pretty-show # TEMPORARY
+    - deepseq # benchmark
 
 executables:
   rule-lang-exe:
@@ -72,5 +74,16 @@ tests:
       - aeson # For generating test positions
       - QuickCheck
       - text-ansi # Terminal colors
+    ghc-options:
+      - -O2
+
+benchmarks:
+  rule-lang-bench:
+    main:         Main.hs
+    source-dirs:  bench
+    dependencies:
+    - rule-lang
+    - criterion
+    - QuickCheck
     ghc-options:
       - -O2

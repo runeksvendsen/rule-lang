@@ -31,6 +31,7 @@ instance StringConv FieldName String where
 instance Hashable FieldName
 instance IsString FieldName where
     fromString = FieldName . toS
+instance NFData FieldName
 
 data FieldValue
     = Number Number
@@ -44,6 +45,7 @@ instance IsString FieldValue where
 -- NB: Only for allowing FieldValue as literal
 instance Num FieldValue where
     fromInteger = Number . realToFrac
+instance NFData FieldValue
 
 fromJsonValue :: Json.Value -> Maybe FieldValue
 fromJsonValue (Json.String txt) =
@@ -57,6 +59,9 @@ fromJsonValue _ =
 
 newtype Number = Number' Double
     deriving (Eq,Ord,Enum,Floating,Fractional,Num,Real,RealFloat,RealFrac,Hashable,Data)
+
+instance NFData Number where
+    rnf (Number' double) = rnf double
 
 instance Show Number where
     show (Number' double) =

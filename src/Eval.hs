@@ -1,6 +1,8 @@
 module Eval
 ( eval
 , mkInitialEnv
+, Env
+, RuntimeValue
   -- * Re-exports
 , Position
 )
@@ -32,7 +34,9 @@ data RuntimeValue
     = Constant Literal                  -- Result of evaluating: ValueExpr or BoolExpr
     | Tree (Tree [Position])            -- Result of evaluating: DataExpr
     | MappedTree (Tree [FieldValue])    -- Result of evaluating: Map
-        deriving (Eq, Show)
+        deriving (Eq, Show, Generic)
+
+instance NFData RuntimeValue
 
 -- | Returns 'False' if a rule has been violated,
 --    otherwise 'True'

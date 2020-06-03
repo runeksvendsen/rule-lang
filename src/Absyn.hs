@@ -110,3 +110,4 @@ instance Hashable BoolExpr
 instance Hashable ValueExpr
 instance Hashable Literal
 instance Hashable BoolCompare
+instance NFData Literal

@@ -17,10 +17,13 @@ import qualified Data.HashMap.Strict as M
 data Tree termLabel =
       Node (NodeData [Tree termLabel])
     | TermNode (NodeData termLabel)
-        deriving (Eq, Show, Functor)
+        deriving (Eq, Show, Functor, Generic)
 
 data NodeData a = NodeData (FieldName, FieldValue) a
-    deriving (Eq, Show, Functor)
+    deriving (Eq, Show, Functor, Generic)
+
+instance NFData a => NFData (Tree a)
+instance NFData a => NFData (NodeData a)
 
 -- Collect all term node labels
 termNodes :: Tree termLabel -> [termLabel]

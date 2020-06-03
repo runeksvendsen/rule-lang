@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4502ad3288d855e45c54de89eebc2b6b0c61da4e28d064270faa87a3a7efb52f
+-- hash: fe54204631026f88ce0538b045fd9fac1df06f4335486507cb4935e18569f567
 
 name:           rule-lang
 version:        0.1.0.0
@@ -27,11 +27,11 @@ library
       Eval
       Examples.Expr
       Examples.Rules
+      Examples.Test.Pos
       LangPrelude
       Parse
       Pretty
       QuasiQuote
-      Report.ParserExample
       Tree
       Types
   other-modules:
@@ -41,9 +41,11 @@ library
   default-extensions: OverloadedStrings StandaloneDeriving DeriveGeneric NoImplicitPrelude FlexibleContexts
   ghc-options: -Wall
   build-depends:
-      aeson
+      QuickCheck
+    , aeson
     , base >=4.7 && <5
     , containers
+    , deepseq
     , errors
     , hashable
     , megaparsec
@@ -85,7 +87,6 @@ test-suite rule-lang-test
       Spec.Parse
       Unit.Eval
       Unit.Parse
-      Unit.PrintParse
       Paths_rule_lang
   hs-source-dirs:
       test
@@ -109,4 +110,20 @@ test-suite rule-lang-test
     , text-ansi
     , transformers
     , unordered-containers
+  default-language: Haskell2010
+
+benchmark rule-lang-bench
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Paths_rule_lang
+  hs-source-dirs:
+      bench
+  default-extensions: OverloadedStrings StandaloneDeriving DeriveGeneric NoImplicitPrelude FlexibleContexts
+  ghc-options: -Wall -O2
+  build-depends:
+      QuickCheck
+    , base >=4.7 && <5
+    , criterion
+    , rule-lang
   default-language: Haskell2010

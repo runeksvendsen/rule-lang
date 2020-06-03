@@ -18,6 +18,7 @@ module LangPrelude
 , module List
 , module Data
 , module String
+, module DS
 )
 where
 
@@ -40,7 +41,7 @@ import qualified Data.List.NonEmpty       as NE
 import           Data.Data                as Data     hiding (Prefix)
 import           Data.String              as String   (IsString(fromString))
 import qualified Data.List.NonEmpty       as NE (nonEmpty)
-
+import           Control.DeepSeq          as DS (NFData(..))
 
 show' :: Show a => a -> Text
 show' = toS . show
