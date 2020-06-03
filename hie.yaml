@@ -7,4 +7,4 @@ cradle:
     - path: "./test"
       component: "rule-lang:test:rule-lang-test"
     - path: "./bench"
-      component: "rule-lang:bench:bench"
+      component: "rule-lang:bench:rule-lang-bench"
