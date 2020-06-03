@@ -1,0 +1,10 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "rule-lang:lib"
+    - path: "./app"
+      component: "rule-lang:exe:rule-lang-exe"
+    - path: "./test"
+      component: "rule-lang:test:rule-lang-test"
+    - path: "./bench"
+      component: "rule-lang:bench:bench"
