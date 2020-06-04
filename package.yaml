@@ -85,5 +85,6 @@ benchmarks:
     - rule-lang
     - criterion
     - QuickCheck
+    - deepseq
     ghc-options:
       - -O2

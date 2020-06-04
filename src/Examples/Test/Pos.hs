@@ -1,5 +1,5 @@
 module Examples.Test.Pos
-( TestPosition
+( TestPosition(..)
 , toPos
 )
 where
@@ -25,6 +25,8 @@ data TestPosition = TestPosition
     , rating            :: String
     , country           :: String
     } deriving Generic
+
+instance NFData TestPosition
 
 -- | Position data tailored for 'Examples.Rules.allRules'
 instance Arbitrary TestPosition where

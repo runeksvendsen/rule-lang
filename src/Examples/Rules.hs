@@ -1,6 +1,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Examples.Rules
 ( allRules
+, ruleI
+, ruleIa
+, ruleII
+, ruleIII
+, ruleIV
+, ruleV
+, ruleVI
 )
 where
 
@@ -27,6 +34,19 @@ let portfolioValue = sum .Value of Portfolio
 forall issuers {
    require sum .Value of Issuer relative to portfolioValue <= 10%
 }
+let issuersAbove5Pct = issuers where (sum .Value of Issuer relative to portfolioValue > 5%)
+require sum .Value of issuersAbove5Pct relative to portfolioValue <= 40%
+    |]
+
+ruleIa :: [Absyn.RuleExpr]
+ruleIa =
+    [rulelang|
+let issuers = Portfolio grouped by .Issuer
+forall issuers {
+   let portfolioValue = sum .Value of Portfolio
+   require sum .Value of Issuer relative to portfolioValue <= 10%
+}
+let portfolioValue = sum .Value of Portfolio
 let issuersAbove5Pct = issuers where (sum .Value of Issuer relative to portfolioValue > 5%)
 require sum .Value of issuersAbove5Pct relative to portfolioValue <= 40%
     |]
