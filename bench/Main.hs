@@ -37,5 +37,5 @@ main = do
     mkLabel f posList = show (countUnique f posList) <> "/" <> show (length posList)
     mkEnv posList = Eval.mkInitialEnv (map Examples.Test.Pos.toPos posList)
     mkBench f rule (force -> !posList) = Crit.bench (mkLabel f posList) (Crit.nf (eval rule) (mkEnv posList))
-    countUnique f = fromIntegral . length . group . sort . map f
+    countUnique f = length . group . sort . map f
     issuerIssue p = (Examples.Test.Pos.issuer p, Examples.Test.Pos.issue p)
