@@ -11,11 +11,14 @@ import Test.QuickCheck (generate, vectorOf, arbitrary)
 import Data.List (group, sort)
 import Control.DeepSeq (force)
 import Control.Exception (evaluate)
+import System.IO (hFlush, stdout)
 
 
 main :: IO ()
 main = do
+    logInfo "Generating test data ... "
     posLists <- evaluate . force =<< mapM genPos counts
+    logInfo "done!\n"
     Crit.defaultMain
       [ Crit.bgroup "Rule I"   $ map (mkBench Examples.Test.Pos.issuer Examples.Rules.ruleI) posLists
       , Crit.bgroup "Rule Ia"  $ map (mkBench Examples.Test.Pos.issuer Examples.Rules.ruleIa) posLists
@@ -26,6 +29,8 @@ main = do
       , Crit.bgroup "Rule VI"  $ map (mkBench Examples.Test.Pos.country Examples.Rules.ruleVI) posLists
       ]
   where
+    logInfo str = putStr str >> hFlush stdout
+    genPos :: Int -> IO [Examples.Test.Pos.TestPosition]
     genPos count = generate (vectorOf count arbitrary)
     counts = map (\n -> 100000 + n * 10000) [1..10]
     eval rule env = Eval.eval env rule
