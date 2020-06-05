@@ -32,7 +32,7 @@ main = do
     logInfo str = putStr str >> hFlush stdout
     genPos :: Int -> IO [Examples.Test.Pos.TestPosition]
     genPos count = generate (vectorOf count arbitrary)
-    counts = map (\n -> 100000 + n * 10000) [1..10]
+    counts = map (\n -> n * 100000) [1..10]
     eval rule env = Eval.eval env rule
     mkLabel f posList = show (countUnique f posList) <> "/" <> show (length posList)
     mkEnv posList = Eval.mkInitialEnv (map Examples.Test.Pos.toPos posList)
