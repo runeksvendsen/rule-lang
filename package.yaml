@@ -88,3 +88,13 @@ benchmarks:
     - deepseq
     ghc-options:
       - -O2
+  rule-lang-weigh:
+    main:         Main.hs
+    source-dirs:  weigh
+    dependencies:
+    - rule-lang
+    - weigh
+    - QuickCheck
+    - deepseq
+    ghc-options:
+      - -O2

@@ -8,3 +8,5 @@ cradle:
       component: "rule-lang:test:rule-lang-test"
     - path: "./bench"
       component: "rule-lang:bench:rule-lang-bench"
+    - path: "./weigh"
+      component: "rule-lang:bench:rule-lang-weigh"

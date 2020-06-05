@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ceff59f9cf9455d2d53540ef28b75099a881589ec08aa232ce8b00fa4063074c
+-- hash: be778837750010052945d8ea26f40e078d0d0ff16343debdccda3abbcf870292
 
 name:           rule-lang
 version:        0.1.0.0
@@ -127,4 +127,21 @@ benchmark rule-lang-bench
     , criterion
     , deepseq
     , rule-lang
+  default-language: Haskell2010
+
+benchmark rule-lang-weigh
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Paths_rule_lang
+  hs-source-dirs:
+      weigh
+  default-extensions: OverloadedStrings StandaloneDeriving DeriveGeneric NoImplicitPrelude FlexibleContexts
+  ghc-options: -Wall -O2
+  build-depends:
+      QuickCheck
+    , base >=4.7 && <5
+    , deepseq
+    , rule-lang
+    , weigh
   default-language: Haskell2010
