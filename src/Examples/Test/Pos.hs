@@ -17,13 +17,13 @@ import Test.QuickCheck
 data TestPosition = TestPosition
     { value             :: Double
     , exposure          :: Double
-    , issuer            :: String
-    , issue             :: Integer
-    , instrumentType    :: String
-    , counterparty      :: String
-    , securityID        :: Integer
-    , rating            :: String
-    , country           :: String
+    , issuer            :: Text
+    , issue             :: Word
+    , instrumentType    :: Text
+    , counterparty      :: Text
+    , securityID        :: Word
+    , rating            :: Text
+    , country           :: Text
     } deriving Generic
 
 instance NFData TestPosition
