@@ -71,10 +71,10 @@ eval initialEnv ruleExprs' =
         in (env, all (== True) (success : termNodes boolTree))
     go (env, success) (If varOrBoolExpr ruleExprs) =
         if groupBoolOrCrash env varOrBoolExpr
-            then (env, eval env ruleExprs && success)
+            then (env, success && eval env ruleExprs)
             else (env, success)
     go (env, success) (Rule varOrBoolExpr) =
-        (env, groupBoolOrCrash env varOrBoolExpr && success)
+        (env, success && groupBoolOrCrash env varOrBoolExpr)
 
 evalExpr
     :: Env RuntimeValue
