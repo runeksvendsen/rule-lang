@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Eval
 ( eval
 , mkInitialEnv
@@ -8,13 +9,20 @@ module Eval
 )
 where
 
-import LangPrelude
+import LangPrelude hiding ((&&))
 import Absyn
 import Types
 import Tree
 import qualified Comparison
 import qualified Data.List
 import qualified Data.List.NonEmpty as NE
+
+
+-- TEMPORARY
+infixr 3  &&
+(&&) :: Bool -> Bool -> Bool
+(&&) True  x  =  x
+(&&) False !_ =  False
 
 
 -- | Variable environment.
