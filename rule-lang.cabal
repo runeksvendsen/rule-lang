@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: be778837750010052945d8ea26f40e078d0d0ff16343debdccda3abbcf870292
 
 name:           rule-lang
 version:        0.1.0.0
@@ -38,7 +36,12 @@ library
       Paths_rule_lang
   hs-source-dirs:
       src
-  default-extensions: OverloadedStrings StandaloneDeriving DeriveGeneric NoImplicitPrelude FlexibleContexts
+  default-extensions:
+      OverloadedStrings
+      StandaloneDeriving
+      DeriveGeneric
+      NoImplicitPrelude
+      FlexibleContexts
   ghc-options: -Wall
   build-depends:
       QuickCheck
@@ -65,7 +68,12 @@ executable rule-lang-exe
       Paths_rule_lang
   hs-source-dirs:
       app
-  default-extensions: OverloadedStrings StandaloneDeriving DeriveGeneric NoImplicitPrelude FlexibleContexts
+  default-extensions:
+      OverloadedStrings
+      StandaloneDeriving
+      DeriveGeneric
+      NoImplicitPrelude
+      FlexibleContexts
   ghc-options: -Wall
   build-depends:
       aeson
@@ -90,7 +98,12 @@ test-suite rule-lang-test
       Paths_rule_lang
   hs-source-dirs:
       test
-  default-extensions: OverloadedStrings StandaloneDeriving DeriveGeneric NoImplicitPrelude FlexibleContexts
+  default-extensions:
+      OverloadedStrings
+      StandaloneDeriving
+      DeriveGeneric
+      NoImplicitPrelude
+      FlexibleContexts
   ghc-options: -Wall -O2
   build-depends:
       QuickCheck
@@ -105,6 +118,7 @@ test-suite rule-lang-test
     , rule-lang
     , smallcheck
     , tasty
+    , tasty-quickcheck
     , tasty-smallcheck
     , text
     , text-ansi
@@ -119,7 +133,12 @@ benchmark rule-lang-bench
       Paths_rule_lang
   hs-source-dirs:
       bench
-  default-extensions: OverloadedStrings StandaloneDeriving DeriveGeneric NoImplicitPrelude FlexibleContexts
+  default-extensions:
+      OverloadedStrings
+      StandaloneDeriving
+      DeriveGeneric
+      NoImplicitPrelude
+      FlexibleContexts
   ghc-options: -Wall -O2
   build-depends:
       QuickCheck
@@ -136,7 +155,12 @@ benchmark rule-lang-weigh
       Paths_rule_lang
   hs-source-dirs:
       weigh
-  default-extensions: OverloadedStrings StandaloneDeriving DeriveGeneric NoImplicitPrelude FlexibleContexts
+  default-extensions:
+      OverloadedStrings
+      StandaloneDeriving
+      DeriveGeneric
+      NoImplicitPrelude
+      FlexibleContexts
   ghc-options: -Wall -O2
   build-depends:
       QuickCheck
